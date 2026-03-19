@@ -2,7 +2,7 @@
   "name": "local-engineering-brain-workspace",
   "private": false,
   "author": "Lazar Dilov",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Monorepo for the Local Engineering Brain MCP server.",
   "packageManager": "pnpm@10.6.2",
   "workspaces": [
