@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Local Engineering Brain — Architecture</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #070c14;
+    --surface:  #0d1523;
+    --card:     #111d2e;
+    --border:   #1e304a;
+    --border2:  #2a3f5f;
+    --text:     #cdd9ef;
+    --muted:    #5a7494;
+    --cyan:     #00d4ff;
+    --purple:   #9d6dff;
+    --green:    #3dffa0;
+    --amber:    #ffb830;
+    --red:      #ff5572;
+    --blue:     #4d9fff;
+    --orange:   #ff8c42;
+
+    --cat-entry:        #ff5572;
+    --cat-orchestration:#ff8c42;
+    --cat-query:        #00d4ff;
+    --cat-storage:      #ffb830;
+    --cat-foundation:   #9d6dff;
+    --cat-language:     #3dffa0;
+    --cat-intelligence: #4d9fff;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ─────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(7,12,20,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 32px; height: 52px; gap: 4px;
+  }
+  .nav-brand {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--cyan); text-transform: uppercase; margin-right: auto;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav-brand span { color: var(--muted); font-weight: 400; }
+  .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .nav-link {
+    padding: 6px 14px; border-radius: 4px; text-decoration: none;
+    color: var(--muted); font-size: 12px; transition: all .15s;
+  }
+  .nav-link:hover { color: var(--text); background: var(--card); }
+  .nav-link.active { color: var(--cyan); }
+
+  /* ── HERO ─────────────────────────────────────────────── */
+  .hero {
+    padding: 72px 48px 56px;
+    max-width: 1100px; margin: 0 auto;
+  }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--cyan); border: 1px solid rgba(0,212,255,.25);
+    padding: 3px 10px; border-radius: 3px; margin-bottom: 24px;
+    background: rgba(0,212,255,.05);
+  }
+  .hero h1 {
+    font-size: 38px; font-weight: 800; letter-spacing: -0.02em;
+    color: #fff; line-height: 1.1; margin-bottom: 20px;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  .hero h1 em { font-style: normal; color: var(--cyan); }
+  .hero-sub {
+    font-size: 15px; color: var(--muted); max-width: 620px;
+    line-height: 1.7; margin-bottom: 40px;
+    font-family: system-ui, sans-serif;
+  }
+
+  /* flow strip */
+  .flow-strip {
+    display: flex; align-items: center; gap: 0;
+    flex-wrap: wrap; gap: 8px;
+  }
+  .flow-node {
+    padding: 8px 16px; border-radius: 6px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+    border: 1px solid; white-space: nowrap;
+  }
+  .flow-node.client  { border-color: var(--purple); color: var(--purple); background: rgba(157,109,255,.08); }
+  .flow-node.server  { border-color: var(--red);    color: var(--red);    background: rgba(255,85,114,.08); }
+  .flow-node.engine  { border-color: var(--cyan);   color: var(--cyan);   background: rgba(0,212,255,.08); }
+  .flow-node.db      { border-color: var(--amber);  color: var(--amber);  background: rgba(255,184,48,.08); }
+  .flow-arrow {
+    color: var(--border2); font-size: 16px;
+  }
+  .flow-label {
+    font-size: 10px; color: var(--muted); letter-spacing: 0.06em;
+    text-transform: uppercase; margin-top: 4px; text-align: center;
+  }
+  .flow-col { display: flex; flex-direction: column; align-items: center; }
+
+  .stats-row {
+    display: flex; gap: 32px; margin-top: 48px; flex-wrap: wrap;
+  }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat-num { font-size: 28px; font-weight: 800; color: #fff;
+    font-family: system-ui, sans-serif; }
+  .stat-num em { font-style: normal; font-size: 14px; color: var(--cyan); }
+  .stat-label { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; }
+
+  /* ── SECTION WRAPPER ──────────────────────────────────── */
+  section { padding: 64px 48px; max-width: 1100px; margin: 0 auto; }
+  .section-header {
+    display: flex; align-items: baseline; gap: 16px; margin-bottom: 40px;
+    border-bottom: 1px solid var(--border); padding-bottom: 16px;
+  }
+  .section-num {
+    font-size: 11px; color: var(--muted); letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .section-title {
+    font-size: 22px; font-weight: 700; color: #fff;
+    font-family: system-ui, sans-serif; letter-spacing: -0.01em;
+  }
+
+  /* ── GRAPH ────────────────────────────────────────────── */
+  #graph-section { max-width: 1200px; }
+  .graph-wrap {
+    display: grid; grid-template-columns: 1fr 320px; gap: 16px;
+    align-items: start;
+  }
+  .graph-canvas {
+    border: 1px solid var(--border);
+    border-radius: 8px; background: var(--surface);
+    overflow: hidden; position: relative;
+  }
+  #graph-svg { width: 100%; height: 580px; display: block; }
+
+  .graph-controls {
+    position: absolute; bottom: 12px; left: 12px;
+    display: flex; gap: 6px;
+  }
+  .btn-sm {
+    padding: 5px 10px; background: var(--card); border: 1px solid var(--border2);
+    color: var(--muted); border-radius: 4px; cursor: pointer; font-size: 11px;
+    font-family: inherit; transition: all .15s;
+  }
+  .btn-sm:hover { color: var(--text); border-color: var(--cyan); }
+
+  /* legend */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; color: var(--muted); letter-spacing: 0.04em;
+  }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* sidebar */
+  .graph-sidebar {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px; min-height: 200px;
+  }
+  .sidebar-empty {
+    color: var(--muted); font-size: 11px; text-align: center;
+    padding: 40px 0; line-height: 1.8;
+  }
+  .sidebar-name {
+    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sidebar-cat {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 3px; font-weight: 600;
+  }
+  .sidebar-desc {
+    font-size: 12px; color: var(--muted); line-height: 1.6;
+    margin-bottom: 16px; font-family: system-ui, sans-serif;
+  }
+  .sidebar-deps-title {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .dep-list { display: flex; flex-direction: column; gap: 4px; }
+  .dep-item {
+    font-size: 11px; padding: 4px 8px; border-radius: 4px;
+    background: var(--card); border: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dep-dot { width: 5px; height: 5px; border-radius: 50; flex-shrink: 0; }
+
+  /* ── TOOLS ────────────────────────────────────────────── */
+  .tool-groups { display: flex; flex-direction: column; gap: 40px; }
+  .tool-group-label {
+    font-size: 11px; color: var(--muted); letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .tool-group-label::after {
+    content:''; flex:1; height:1px; background: var(--border);
+  }
+  .tool-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+  .tool-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; cursor: pointer;
+    transition: all .15s; position: relative; overflow: hidden;
+  }
+  .tool-card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+    background: var(--group-color, var(--cyan)); opacity: 0.6;
+  }
+  .tool-card:hover, .tool-card.active {
+    border-color: var(--group-color, var(--cyan));
+    background: var(--card);
+    box-shadow: 0 0 0 1px var(--group-color, var(--cyan)), 0 8px 32px rgba(0,0,0,.4);
+  }
+  .tool-name {
+    font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 6px;
+    font-family: 'SF Mono', monospace;
+  }
+  .tool-desc {
+    font-size: 11px; color: var(--muted); line-height: 1.6;
+    font-family: system-ui, sans-serif; margin-bottom: 12px;
+  }
+  .tool-when {
+    font-size: 10px; color: var(--muted); font-style: italic;
+    font-family: system-ui, sans-serif;
+  }
+
+  /* expanded tool detail */
+  .tool-detail {
+    display: none; margin-top: 16px; padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .tool-card.active .tool-detail { display: block; }
+  .flow-chain {
+    display: flex; flex-direction: column; gap: 0;
+    margin-bottom: 12px;
+  }
+  .flow-step {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 6px 0;
+  }
+  .flow-step-line {
+    display: flex; flex-direction: column; align-items: center;
+    flex-shrink: 0; width: 14px;
+  }
+  .flow-step-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    border: 1.5px solid; margin-top: 4px;
+  }
+  .flow-step-connector {
+    width: 1px; flex: 1; min-height: 16px;
+    background: var(--border2); margin-top: 2px;
+  }
+  .flow-step-text {
+    font-size: 11px; padding-top: 2px; line-height: 1.5;
+  }
+  .flow-step-name { font-weight: 600; }
+  .flow-step-note { color: var(--muted); font-size: 10px; font-style: italic; }
+  .pkg-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .pkg-tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 3px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .detail-label {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 6px; margin-top: 12px;
+  }
+
+  /* ── DATA MODEL ───────────────────────────────────────── */
+  .dm-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+  }
+  .dm-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px;
+  }
+  .dm-card-title {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 16px; font-weight: 600;
+  }
+  .entity-grid { display: flex; flex-direction: column; gap: 4px; }
+  .entity-row {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 5px 8px; border-radius: 4px; transition: background .12s;
+  }
+  .entity-row:hover { background: var(--card); }
+  .entity-name { font-size: 12px; font-weight: 600; min-width: 140px; color: #fff; }
+  .entity-desc { font-size: 11px; color: var(--muted); font-family: system-ui, sans-serif; }
+  .entity-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    margin-top: 3px;
+  }
+
+  .edge-grid { display: flex; flex-direction: column; gap: 4px; }
+  .edge-row {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 5px 8px; border-radius: 4px; transition: background .12s;
+  }
+  .edge-row:hover { background: var(--card); }
+  .edge-name { font-size: 12px; font-weight: 600; min-width: 160px; color: var(--cyan); }
+  .edge-desc { font-size: 11px; color: var(--muted); font-family: system-ui, sans-serif; }
+
+  /* ── PIPELINE DIAGRAM ─────────────────────────────────── */
+  .pipeline {
+    display: flex; flex-direction: column; gap: 0;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    background: var(--surface);
+  }
+  .pipeline-step {
+    display: grid; grid-template-columns: 200px 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+  .pipeline-step:last-child { border-bottom: none; }
+  .pipeline-left {
+    padding: 16px 20px; border-right: 1px solid var(--border);
+    background: var(--card);
+  }
+  .pipeline-phase {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 4px;
+  }
+  .pipeline-component {
+    font-size: 13px; font-weight: 700; color: #fff;
+  }
+  .pipeline-right {
+    padding: 16px 20px;
+  }
+  .pipeline-right p {
+    font-size: 12px; color: var(--muted); line-height: 1.6;
+    font-family: system-ui, sans-serif;
+  }
+  .pipeline-packages { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .pipeline-pkg {
+    font-size: 10px; padding: 2px 7px; border-radius: 3px;
+    background: rgba(0,0,0,.3); border: 1px solid var(--border2);
+  }
+
+  /* ── FOOTER ───────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--border); padding: 28px 48px;
+    color: var(--muted); font-size: 11px;
+    display: flex; justify-content: space-between; align-items: center;
+    max-width: 1100px; margin: 0 auto;
+  }
+
+  /* ── SCROLLBAR ────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* ── MISC ─────────────────────────────────────────────── */
+  .badge {
+    display: inline-block; font-size: 9px; padding: 1px 6px;
+    border-radius: 2px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; vertical-align: middle;
+  }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- ── NAV ─────────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-dot"></div>
+    local-engineering-brain
+    <span>/ architecture</span>
+  </div>
+  <a class="nav-link" href="#overview">Overview</a>
+  <a class="nav-link" href="#graph-section">Package Graph</a>
+  <a class="nav-link" href="#tools-section">Tools</a>
+  <a class="nav-link" href="#data-model">Data Model</a>
+  <a class="nav-link" href="#pipeline">Indexing Pipeline</a>
+</nav>
+
+<!-- ── HERO ─────────────────────────────────────────────────── -->
+<div class="hero" id="overview">
+  <div class="hero-tag">
+    <div class="nav-dot" style="width:5px;height:5px;"></div>
+    MCP Server · Local-first · SQLite Graph
+  </div>
+  <h1>Local Engineering Brain<br/>gives AI clients <em>real codebase context</em></h1>
+  <p class="hero-sub">
+    Indexes a workspace into a local SQLite knowledge graph and exposes structured engineering intelligence through 15 MCP tools. No cloud. No embeddings. Pure structural analysis — symbols, edges, dependencies, git changes, tests, logs.
+  </p>
+
+  <div class="flow-strip">
+    <div class="flow-col">
+      <div class="flow-node client">AI Client</div>
+      <div class="flow-label">Claude / Cursor / Copilot</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-col">
+      <div class="flow-node server">mcp-server</div>
+      <div class="flow-label">stdio transport</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-col">
+      <div class="flow-node engine">indexer</div>
+      <div class="flow-label">write path</div>
+    </div>
+    <div class="flow-arrow">↕</div>
+    <div class="flow-col">
+      <div class="flow-node db">storage-sqlite</div>
+      <div class="flow-label">~/.local-engineering-brain/brain.db</div>
+    </div>
+    <div class="flow-arrow">↕</div>
+    <div class="flow-col">
+      <div class="flow-node engine">retrieval-engine</div>
+      <div class="flow-label">read path</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-col">
+      <div class="flow-node engine">graph-engine</div>
+      <div class="flow-label">BFS · Dijkstra</div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat">
+      <div class="stat-num">18<em> pkgs</em></div>
+      <div class="stat-label">Monorepo packages</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">15<em> tools</em></div>
+      <div class="stat-label">MCP tool surface</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">9<em> types</em></div>
+      <div class="stat-label">Entity types in graph</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">10<em> types</em></div>
+      <div class="stat-label">Edge types in graph</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">3<em> langs</em></div>
+      <div class="stat-label">TS · C# · Lua</div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider" />
+
+<!-- ── PACKAGE GRAPH ─────────────────────────────────────── -->
+<section id="graph-section" style="max-width:1200px">
+  <div class="section-header">
+    <span class="section-num">01</span>
+    <span class="section-title">Package Dependency Graph</span>
+  </div>
+
+  <div class="legend" style="margin-bottom:16px">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cat-entry)"></div> Entry Point</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cat-orchestration)"></div> Orchestration</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cat-query)"></div> Query / Graph</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cat-storage)"></div> Storage</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cat-foundation)"></div> Foundation</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cat-language)"></div> Language Adapters</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cat-intelligence)"></div> Intelligence</div>
+  </div>
+
+  <div class="graph-wrap">
+    <div class="graph-canvas">
+      <svg id="graph-svg"></svg>
+      <div class="graph-controls">
+        <button class="btn-sm" id="btn-reset">Reset zoom</button>
+        <button class="btn-sm" id="btn-reheat">Reheat</button>
+      </div>
+    </div>
+    <div class="graph-sidebar" id="graph-sidebar">
+      <div class="sidebar-empty">← Click any node<br/>to explore the package</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── TOOLS ─────────────────────────────────────────────── -->
+<section id="tools-section">
+  <div class="section-header">
+    <span class="section-num">02</span>
+    <span class="section-title">MCP Tools — 15 total</span>
+  </div>
+
+  <div class="tool-groups" id="tool-groups"></div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── DATA MODEL ─────────────────────────────────────────── -->
+<section id="data-model">
+  <div class="section-header">
+    <span class="section-num">03</span>
+    <span class="section-title">Data Model</span>
+  </div>
+  <div class="dm-grid">
+    <div class="dm-card">
+      <div class="dm-card-title">Entity Types (nodes)</div>
+      <div class="entity-grid">
+        <div class="entity-row"><div class="entity-dot" style="background:var(--purple)"></div><div class="entity-name">workspace</div><div class="entity-desc">Root registration unit. Maps to a root path on disk.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--purple)"></div><div class="entity-name">repository</div><div class="entity-desc">VCS context (git or none). Holds branch state.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--orange)"></div><div class="entity-name">package</div><div class="entity-desc">Manifest-backed unit (package.json, .csproj).</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--blue)"></div><div class="entity-name">file</div><div class="entity-desc">Indexed file with language, summary, and hash.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--cyan)"></div><div class="entity-name">module</div><div class="entity-desc">Canonical code module. Has exports, dep counts.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--green)"></div><div class="entity-name">symbol</div><div class="entity-desc">Function, class, type, enum — with range + signature.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--amber)"></div><div class="entity-name">commit</div><div class="entity-desc">Git commit. SHA, author, summary, branch.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--amber)"></div><div class="entity-name">change_group</div><div class="entity-desc">Set of files changed in a commit.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--green)"></div><div class="entity-name">test_suite / test_case</div><div class="entity-desc">Detected test files and individual cases.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--red)"></div><div class="entity-name">architecture_violation</div><div class="entity-desc">Persisted rule breach with severity + detail.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--muted)"></div><div class="entity-name">log_event</div><div class="entity-desc">Ingested log entry with level, service, message.</div></div>
+        <div class="entity-row"><div class="entity-dot" style="background:var(--muted)"></div><div class="entity-name">incident</div><div class="entity-desc">Correlated failure event for incident timelines.</div></div>
+      </div>
+    </div>
+    <div class="dm-card">
+      <div class="dm-card-title">Edge Types (relationships)</div>
+      <div class="edge-grid">
+        <div class="edge-row"><div class="edge-name">contains</div><div class="edge-desc">Workspace → repo → package → file containment.</div></div>
+        <div class="edge-row"><div class="edge-name">belongs_to_package</div><div class="edge-desc">File / module membership in a package.</div></div>
+        <div class="edge-row"><div class="edge-name">declares</div><div class="edge-desc">File → module declaration edge.</div></div>
+        <div class="edge-row"><div class="edge-name">exports</div><div class="edge-desc">Module → symbol public export.</div></div>
+        <div class="edge-row"><div class="edge-name">imports</div><div class="edge-desc">Module → module import dependency. Primary graph edge.</div></div>
+        <div class="edge-row"><div class="edge-name">references</div><div class="edge-desc">Symbol cross-reference (type usage, field access).</div></div>
+        <div class="edge-row"><div class="edge-name">calls</div><div class="edge-desc">Symbol → symbol function call edge.</div></div>
+        <div class="edge-row"><div class="edge-name">changed_in</div><div class="edge-desc">File → commit change linkage.</div></div>
+        <div class="edge-row"><div class="edge-name">tests</div><div class="edge-desc">Test case → module under test.</div></div>
+        <div class="edge-row"><div class="edge-name">failed_after_change</div><div class="edge-desc">Test → commit correlation for failure analysis.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── INDEXING PIPELINE ───────────────────────────────────── -->
+<section id="pipeline">
+  <div class="section-header">
+    <span class="section-num">04</span>
+    <span class="section-title">Indexing Pipeline</span>
+  </div>
+
+  <div class="pipeline">
+    <div class="pipeline-step">
+      <div class="pipeline-left">
+        <div class="pipeline-phase">Phase 1</div>
+        <div class="pipeline-component" style="color:var(--orange)">workspace-manager</div>
+      </div>
+      <div class="pipeline-right">
+        <p>Register or retrieve workspace. Resolve app paths under <code>~/.local-engineering-brain/</code>. Auto-detect workspace from CLI args, env vars, or CWD markers (CLAUDE_PROJECT_DIR, CODEX_WORKSPACE_ROOT, etc.).</p>
+        <div class="pipeline-packages">
+          <span class="pipeline-pkg" style="color:var(--orange)">workspace-manager</span>
+          <span class="pipeline-pkg" style="color:var(--amber)">storage-sqlite</span>
+          <span class="pipeline-pkg" style="color:var(--purple)">shared-utils</span>
+        </div>
+      </div>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipeline-left">
+        <div class="pipeline-phase">Phase 2</div>
+        <div class="pipeline-component" style="color:var(--blue)">discovery-engine</div>
+      </div>
+      <div class="pipeline-right">
+        <p>Glob all files. Apply .gitignore rules. Classify each candidate as <em>source / test / config / manifest / doc</em>. Skip <code>node_modules/</code>, <code>dist/</code>, <code>coverage/</code>. Build candidate file list for parsing.</p>
+        <div class="pipeline-packages">
+          <span class="pipeline-pkg" style="color:var(--blue)">discovery-engine</span>
+          <span class="pipeline-pkg" style="color:var(--purple)">language-core</span>
+          <span class="pipeline-pkg" style="color:var(--purple)">shared-utils</span>
+        </div>
+      </div>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipeline-left">
+        <div class="pipeline-phase">Phase 3</div>
+        <div class="pipeline-component" style="color:var(--green)">language adapters</div>
+      </div>
+      <div class="pipeline-right">
+        <p>Route each file to the matching language adapter. <strong>TypeScript/JS</strong>: deep AST parse — extracts symbols, imports, exports, call edges. <strong>C# / Lua</strong>: guaranteed-discovery mode — file + manifest evidence. Unrecognized files: file-level indexing only.</p>
+        <div class="pipeline-packages">
+          <span class="pipeline-pkg" style="color:var(--green)">language-ts</span>
+          <span class="pipeline-pkg" style="color:var(--green)">language-csharp</span>
+          <span class="pipeline-pkg" style="color:var(--green)">language-lua</span>
+          <span class="pipeline-pkg" style="color:var(--purple)">language-core</span>
+        </div>
+      </div>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipeline-left">
+        <div class="pipeline-phase">Phase 4</div>
+        <div class="pipeline-component" style="color:var(--blue)">intel collectors</div>
+      </div>
+      <div class="pipeline-right">
+        <p>Parallel collection of supplementary intelligence: <strong>git-intel</strong> walks branch commits and changed files; <strong>manifest-intel</strong> extracts package manager hints; <strong>test-intel</strong> identifies test frameworks and cases; <strong>log-intel</strong> ingests workspace logs.</p>
+        <div class="pipeline-packages">
+          <span class="pipeline-pkg" style="color:var(--blue)">git-intel</span>
+          <span class="pipeline-pkg" style="color:var(--blue)">manifest-intel</span>
+          <span class="pipeline-pkg" style="color:var(--blue)">test-intel</span>
+          <span class="pipeline-pkg" style="color:var(--blue)">log-intel</span>
+        </div>
+      </div>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipeline-left">
+        <div class="pipeline-phase">Phase 5</div>
+        <div class="pipeline-component" style="color:var(--red)">architecture-rules</div>
+      </div>
+      <div class="pipeline-right">
+        <p>Evaluate user-configured allow/forbid rules against the assembled edge graph. Emit <code>architecture_violation</code> entities for breaches. Violations are persisted and queryable — not re-evaluated per request.</p>
+        <div class="pipeline-packages">
+          <span class="pipeline-pkg" style="color:var(--red)">architecture-rules</span>
+          <span class="pipeline-pkg" style="color:var(--amber)">storage-sqlite</span>
+        </div>
+      </div>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipeline-left">
+        <div class="pipeline-phase">Phase 6</div>
+        <div class="pipeline-component" style="color:var(--amber)">storage-sqlite</div>
+      </div>
+      <div class="pipeline-right">
+        <p>Persist all entities and edges via typed upsert. SQLite WAL mode for concurrent reads during indexing. Stable IDs (sha256-based) ensure idempotent re-indexing. Single local database at <code>~/.local-engineering-brain/brain.db</code>.</p>
+        <div class="pipeline-packages">
+          <span class="pipeline-pkg" style="color:var(--amber)">storage-sqlite</span>
+          <span class="pipeline-pkg" style="color:var(--purple)">core-types</span>
+          <span class="pipeline-pkg" style="color:var(--purple)">shared-utils</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+<footer>
+  <span>local-engineering-brain · v0.2.5 · Architecture snapshot</span>
+  <span style="color:var(--muted)">18 packages · 15 MCP tools · SQLite WAL</span>
+</footer>
+
+<script>
+// ── DATA ────────────────────────────────────────────────────────
+const catColor = {
+  entry:          'var(--cat-entry)',
+  orchestration:  'var(--cat-orchestration)',
+  query:          'var(--cat-query)',
+  storage:        'var(--cat-storage)',
+  foundation:     'var(--cat-foundation)',
+  language:       'var(--cat-language)',
+  intelligence:   'var(--cat-intelligence)',
+};
+
+const nodes = [
+  { id: 'mcp-server',          cat: 'entry',          label: 'mcp-server',          desc: 'Entry point. Stdio MCP transport. Bootstraps workspace from CLI args or env hints. Registers all 15 tools. Routes calls to indexer or retrieval-engine.' },
+  { id: 'indexer',             cat: 'orchestration',  label: 'indexer',             desc: 'Orchestrates the full index run: discover → classify → parse → collect intel → evaluate rules → persist. The write path for the entire system.' },
+  { id: 'retrieval-engine',    cat: 'query',          label: 'retrieval-engine',    desc: 'Query layer for all read tools. Wraps graph-engine + storage-sqlite. Returns structured ToolResponse with confidence score, evidence bundles, and suggested next tools.' },
+  { id: 'graph-engine',        cat: 'query',          label: 'graph-engine',        desc: 'BFS (forward/reverse) and Dijkstra (shortest path) traversal directly over the SQLite edge table. Weighted by edge type. Powers dependency, blast-radius, and path queries.' },
+  { id: 'storage-sqlite',      cat: 'storage',        label: 'storage-sqlite',      desc: 'SQLite WAL persistence. Schema covers all entity and edge types. Typed upsert methods. Stable sha256-based IDs ensure idempotent re-indexing. Single file: brain.db.' },
+  { id: 'workspace-manager',   cat: 'orchestration',  label: 'workspace-manager',   desc: 'Workspace registration and lifecycle. Resolves app paths under ~/.local-engineering-brain. Reads/writes config.json. Handles auto-detection of active workspace from 6+ env hints.' },
+  { id: 'tool-contracts',      cat: 'orchestration',  label: 'tool-contracts',      desc: 'Zod schemas for all 15 MCP tool inputs and outputs. Single source of truth for the full tool surface. Shared between server registration and handler implementations.' },
+  { id: 'core-types',          cat: 'foundation',     label: 'core-types',          desc: 'Shared domain model. Defines EntityType, EdgeType, and all record interfaces (WorkspaceRecord, ModuleRecord, SymbolRecord, etc.). Zero runtime dependencies — pure types.' },
+  { id: 'shared-utils',        cat: 'foundation',     label: 'shared-utils',        desc: 'Pure utility functions: stableId (sha256-based deterministic IDs), sha256, normalizePath, nowIso, pathToModuleLanguage. Zero dependencies. Used by every package.' },
+  { id: 'language-core',       cat: 'foundation',     label: 'language-core',       desc: 'Language-agnostic adapter registry + module identity provider (FileBackedModuleIdentityProvider). Defines the plug-in contract all language adapters must implement.' },
+  { id: 'language-ts',         cat: 'language',       label: 'language-ts',         desc: 'TypeScript and JavaScript deep AST parser. Extracts symbols (functions, classes, types, enums), import/export edges, call graph edges. Highest fidelity adapter.' },
+  { id: 'language-csharp',     cat: 'language',       label: 'language-csharp',     desc: 'C# guaranteed-discovery adapter. File-level evidence + manifest hints. Structural analysis without full AST — safe for large C# codebases.' },
+  { id: 'language-lua',        cat: 'language',       label: 'language-lua',        desc: 'Lua guaranteed-discovery adapter. File-level evidence + manifest hints. Used for game/scripting codebases (WoW addons, embedded scripts).' },
+  { id: 'discovery-engine',    cat: 'intelligence',   label: 'discovery-engine',    desc: 'File discovery and classification. Globs workspace with .gitignore filtering. Classifies each file as source/test/config/manifest/doc. Builds CandidateFile list for parsers.' },
+  { id: 'git-intel',           cat: 'intelligence',   label: 'git-intel',           desc: 'Git intelligence collector. Walks branch commits, extracts changed file sets, maps to commit and change_group entities. Feeds summarize_branch_changes and blast radius.' },
+  { id: 'log-intel',           cat: 'intelligence',   label: 'log-intel',           desc: 'Workspace log ingestion. Reads configured log paths, parses entries by level and service, writes log_event entities. Powers query_logs and build_incident_timeline.' },
+  { id: 'manifest-intel',      cat: 'intelligence',   label: 'manifest-intel',      desc: 'Package manifest parser. Reads package.json, .csproj, and similar manifests. Extracts package manager hints for enriching the package graph.' },
+  { id: 'test-intel',          cat: 'intelligence',   label: 'test-intel',          desc: 'Test framework detection (Jest, Vitest, Playwright). Extracts test_suite and test_case entities. Powers analyze_test_failures via failed_after_change edges.' },
+  { id: 'architecture-rules',  cat: 'intelligence',   label: 'arch-rules',          desc: 'Evaluates user-defined allow/forbid dependency rules against the edge graph. Emits architecture_violation entities with severity. Violations are persisted, not re-evaluated live.' },
+];
+
+const edges = [
+  // mcp-server
+  {s:'mcp-server', t:'indexer'},
+  {s:'mcp-server', t:'retrieval-engine'},
+  {s:'mcp-server', t:'graph-engine'},
+  {s:'mcp-server', t:'storage-sqlite'},
+  {s:'mcp-server', t:'workspace-manager'},
+  {s:'mcp-server', t:'tool-contracts'},
+  {s:'mcp-server', t:'shared-utils'},
+  // indexer
+  {s:'indexer', t:'architecture-rules'},
+  {s:'indexer', t:'core-types'},
+  {s:'indexer', t:'discovery-engine'},
+  {s:'indexer', t:'git-intel'},
+  {s:'indexer', t:'language-csharp'},
+  {s:'indexer', t:'language-core'},
+  {s:'indexer', t:'language-lua'},
+  {s:'indexer', t:'language-ts'},
+  {s:'indexer', t:'log-intel'},
+  {s:'indexer', t:'manifest-intel'},
+  {s:'indexer', t:'shared-utils'},
+  {s:'indexer', t:'storage-sqlite'},
+  {s:'indexer', t:'test-intel'},
+  // retrieval-engine
+  {s:'retrieval-engine', t:'core-types'},
+  {s:'retrieval-engine', t:'graph-engine'},
+  {s:'retrieval-engine', t:'log-intel'},
+  {s:'retrieval-engine', t:'storage-sqlite'},
+  {s:'retrieval-engine', t:'workspace-manager'},
+  // graph-engine
+  {s:'graph-engine', t:'core-types'},
+  {s:'graph-engine', t:'storage-sqlite'},
+  // workspace-manager
+  {s:'workspace-manager', t:'core-types'},
+  {s:'workspace-manager', t:'shared-utils'},
+  // tool-contracts
+  {s:'tool-contracts', t:'core-types'},
+  // architecture-rules
+  {s:'architecture-rules', t:'core-types'},
+  {s:'architecture-rules', t:'shared-utils'},
+  // git-intel
+  {s:'git-intel', t:'core-types'},
+  {s:'git-intel', t:'shared-utils'},
+  // log-intel
+  {s:'log-intel', t:'core-types'},
+  {s:'log-intel', t:'shared-utils'},
+  // manifest-intel
+  {s:'manifest-intel', t:'language-core'},
+  {s:'manifest-intel', t:'shared-utils'},
+  // test-intel
+  {s:'test-intel', t:'core-types'},
+  {s:'test-intel', t:'shared-utils'},
+  // discovery-engine
+  {s:'discovery-engine', t:'language-core'},
+  {s:'discovery-engine', t:'shared-utils'},
+  // language-ts
+  {s:'language-ts', t:'core-types'},
+  {s:'language-ts', t:'language-core'},
+  {s:'language-ts', t:'shared-utils'},
+  // language-csharp
+  {s:'language-csharp', t:'core-types'},
+  {s:'language-csharp', t:'language-core'},
+  {s:'language-csharp', t:'shared-utils'},
+  // language-lua
+  {s:'language-lua', t:'core-types'},
+  {s:'language-lua', t:'language-core'},
+  {s:'language-lua', t:'shared-utils'},
+  // storage-sqlite
+  {s:'storage-sqlite', t:'core-types'},
+  {s:'storage-sqlite', t:'shared-utils'},
+];
+
+const toolData = [
+  {
+    group: 'Indexing',
+    color: 'var(--orange)',
+    tools: [
+      {
+        id: 'index_workspace', name: 'index_workspace',
+        desc: 'Allowlists and crawls a workspace into the local graph. Triggers the full 6-phase indexing pipeline.',
+        when: 'Call first. Nothing else works until this completes.',
+        flow: [
+          { name: 'AI Client',         note: 'invokes tool with rootPath + optional label', color: 'var(--purple)' },
+          { name: 'mcp-server',        note: 'validates input via tool-contracts schema', color: 'var(--red)' },
+          { name: 'workspace-manager', note: 'register or retrieve workspace record', color: 'var(--orange)' },
+          { name: 'indexer',           note: 'orchestrates full pipeline run', color: 'var(--orange)' },
+          { name: 'discovery-engine → language-* → intel collectors', note: 'parallel extraction', color: 'var(--blue)' },
+          { name: 'architecture-rules', note: 'evaluate user rules against edges', color: 'var(--red)' },
+          { name: 'storage-sqlite',    note: 'upsert all entities and edges', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','indexer','workspace-manager','discovery-engine','language-ts','language-csharp','language-lua','git-intel','log-intel','manifest-intel','test-intel','architecture-rules','storage-sqlite']
+      },
+      {
+        id: 'get_index_status', name: 'get_index_status',
+        desc: 'Returns indexing progress or safe-default server status.',
+        when: 'Poll after index_workspace. Check before any query if freshness matters.',
+        flow: [
+          { name: 'AI Client',         note: 'optional workspaceId', color: 'var(--purple)' },
+          { name: 'mcp-server',        note: 'route to status handler', color: 'var(--red)' },
+          { name: 'workspace-manager', note: 'resolve workspace record', color: 'var(--orange)' },
+          { name: 'storage-sqlite',    note: 'read last_indexed_at, entity counts', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','workspace-manager','storage-sqlite']
+      },
+    ]
+  },
+  {
+    group: 'Discovery',
+    color: 'var(--cyan)',
+    tools: [
+      {
+        id: 'search_code', name: 'search_code',
+        desc: 'Ranked lexical search across indexed files, modules, and symbols.',
+        when: 'Find relevant code by concept before drilling deeper.',
+        flow: [
+          { name: 'AI Client',          note: 'query string + limit', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'tokenize query, hybrid rank', color: 'var(--cyan)' },
+          { name: 'storage-sqlite',     note: 'FTS scan across modules + symbols', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','storage-sqlite']
+      },
+      {
+        id: 'find_symbol', name: 'find_symbol',
+        desc: 'Resolves a named symbol and returns its location, signature, and call graph context.',
+        when: 'Look up where a specific function/class/type lives and how it\'s used.',
+        flow: [
+          { name: 'AI Client',          note: 'symbolName string', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'symbol lookup by name', color: 'var(--cyan)' },
+          { name: 'storage-sqlite',     note: 'resolve symbol + module record', color: 'var(--amber)' },
+          { name: 'graph-engine',       note: 'walk callers/callees (BFS)', color: 'var(--cyan)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','graph-engine','storage-sqlite']
+      },
+      {
+        id: 'find_module', name: 'find_module',
+        desc: 'Resolves a module path and returns metadata, public exports, and dep counts.',
+        when: 'Get a module\'s surface before editing. Verify exports and coupling stats.',
+        flow: [
+          { name: 'AI Client',          note: 'modulePath string', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'path resolution', color: 'var(--cyan)' },
+          { name: 'storage-sqlite',     note: 'module + symbol records', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','storage-sqlite']
+      },
+      {
+        id: 'explain_module', name: 'explain_module',
+        desc: 'Summarizes a module and its local neighborhood — deps, reverse-deps, key symbols.',
+        when: 'Onboard into an unfamiliar area of the codebase fast.',
+        flow: [
+          { name: 'AI Client',          note: 'modulePath', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'resolve module + compose summary', color: 'var(--cyan)' },
+          { name: 'storage-sqlite',     note: 'module + symbol records', color: 'var(--amber)' },
+          { name: 'graph-engine',       note: 'neighborhood BFS (depth 1)', color: 'var(--cyan)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','graph-engine','storage-sqlite']
+      },
+    ]
+  },
+  {
+    group: 'Graph Traversal',
+    color: 'var(--purple)',
+    tools: [
+      {
+        id: 'get_module_dependencies', name: 'get_module_dependencies',
+        desc: 'Returns direct and transitive import dependencies up to maxDepth.',
+        when: 'Understand what a module relies on before making changes to it.',
+        flow: [
+          { name: 'AI Client',          note: 'modulePath + maxDepth (default 3)', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'resolve module, delegate to graph', color: 'var(--cyan)' },
+          { name: 'graph-engine',       note: 'BFS forward on imports edges', color: 'var(--purple)' },
+          { name: 'storage-sqlite',     note: 'batch node lookups per BFS level', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','graph-engine','storage-sqlite']
+      },
+      {
+        id: 'get_reverse_dependencies', name: 'get_reverse_dependencies',
+        desc: 'Returns modules that import or reference a given entity.',
+        when: 'Find everything that may break if this module changes.',
+        flow: [
+          { name: 'AI Client',          note: 'entityId + maxDepth', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'delegate to graph reverse walk', color: 'var(--cyan)' },
+          { name: 'graph-engine',       note: 'BFS reverse on imports edges', color: 'var(--purple)' },
+          { name: 'storage-sqlite',     note: 'listEdgesTo per BFS level', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','graph-engine','storage-sqlite']
+      },
+      {
+        id: 'trace_dependency_path', name: 'trace_dependency_path',
+        desc: 'Finds the shortest weighted path between two modules.',
+        when: 'Explain why two distant parts of the codebase are coupled.',
+        flow: [
+          { name: 'AI Client',          note: 'sourceModulePath + targetModulePath', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'resolve both modules', color: 'var(--cyan)' },
+          { name: 'graph-engine',       note: 'Dijkstra with weighted edge types', color: 'var(--purple)' },
+          { name: 'storage-sqlite',     note: 'edge scans per relaxation step', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','graph-engine','storage-sqlite']
+      },
+      {
+        id: 'estimate_blast_radius', name: 'estimate_blast_radius',
+        desc: 'Estimates transitive downstream impact of modifying a module.',
+        when: 'Safety check before a refactor. How much of the codebase touches this?',
+        flow: [
+          { name: 'AI Client',          note: 'modulePath + maxDepth', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'resolve module', color: 'var(--cyan)' },
+          { name: 'graph-engine',       note: 'reverse BFS — all transitive importers', color: 'var(--purple)' },
+          { name: 'storage-sqlite',     note: 'listEdgesTo per level', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','graph-engine','storage-sqlite']
+      },
+    ]
+  },
+  {
+    group: 'Change Intelligence',
+    color: 'var(--green)',
+    tools: [
+      {
+        id: 'summarize_branch_changes', name: 'summarize_branch_changes',
+        desc: 'Maps current branch diffs to indexed modules, packages, and change groups.',
+        when: 'Review what this branch actually touches in graph terms before merging.',
+        flow: [
+          { name: 'AI Client',          note: 'workspaceId', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'compose branch change summary', color: 'var(--cyan)' },
+          { name: 'storage-sqlite',     note: 'change_group + module join', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','storage-sqlite']
+      },
+      {
+        id: 'check_architecture_violations', name: 'check_architecture_violations',
+        desc: 'Returns persisted architecture-rule violations filtered by optional severity.',
+        when: 'Enforce layer and dependency boundaries. Run after index to catch regressions.',
+        flow: [
+          { name: 'AI Client',          note: 'optional severity filter', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'query violations', color: 'var(--cyan)' },
+          { name: 'storage-sqlite',     note: 'architecture_violation table scan', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','storage-sqlite','architecture-rules']
+      },
+      {
+        id: 'analyze_test_failures', name: 'analyze_test_failures',
+        desc: 'Ranks likely impacted tests based on changed modules and failed_after_change edges.',
+        when: 'Focus test runs after edits. Don\'t run the full suite blind.',
+        flow: [
+          { name: 'AI Client',          note: 'limit (default 10)', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'rank test failures', color: 'var(--cyan)' },
+          { name: 'storage-sqlite',     note: 'failed_after_change + change_group join', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','storage-sqlite','test-intel']
+      },
+    ]
+  },
+  {
+    group: 'Ops Intelligence',
+    color: 'var(--blue)',
+    tools: [
+      {
+        id: 'query_logs', name: 'query_logs',
+        desc: 'Searches indexed workspace logs by pattern, service, or log level.',
+        when: 'Inspect runtime evidence without re-reading raw log files each time.',
+        flow: [
+          { name: 'AI Client',          note: 'pattern / service / level + limit', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'build log query', color: 'var(--cyan)' },
+          { name: 'storage-sqlite',     note: 'log_event scan with filters', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','log-intel','storage-sqlite']
+      },
+      {
+        id: 'build_incident_timeline', name: 'build_incident_timeline',
+        desc: 'Combines commits, changed files, test failures, incidents, and logs into a correlated timeline.',
+        when: 'Trace a local regression back to its source. Explain failures in context.',
+        flow: [
+          { name: 'AI Client',          note: 'optional service + limit', color: 'var(--purple)' },
+          { name: 'mcp-server',         note: 'validate + route', color: 'var(--red)' },
+          { name: 'retrieval-engine',   note: 'assemble timeline', color: 'var(--cyan)' },
+          { name: 'storage-sqlite',     note: 'commit + log_event + incident join', color: 'var(--amber)' },
+        ],
+        pkgs: ['mcp-server','retrieval-engine','log-intel','storage-sqlite']
+      },
+    ]
+  },
+];
+
+// ── TOOL RENDER ──────────────────────────────────────────────────
+const groupsEl = document.getElementById('tool-groups');
+toolData.forEach(group => {
+  const groupDiv = document.createElement('div');
+  groupDiv.innerHTML = `<div class="tool-group-label" style="--group-c:${group.color}">${group.group}</div>`;
+  const grid = document.createElement('div');
+  grid.className = 'tool-grid';
+
+  group.tools.forEach(tool => {
+    const card = document.createElement('div');
+    card.className = 'tool-card';
+    card.style.setProperty('--group-color', group.color);
+
+    const flowHTML = tool.flow.map((step, i) => `
+      <div class="flow-step">
+        <div class="flow-step-line">
+          <div class="flow-step-dot" style="border-color:${step.color};background:${step.color}22"></div>
+          ${i < tool.flow.length - 1 ? '<div class="flow-step-connector"></div>' : ''}
+        </div>
+        <div class="flow-step-text">
+          <div class="flow-step-name" style="color:${step.color}">${step.name}</div>
+          <div class="flow-step-note">${step.note}</div>
+        </div>
+      </div>
+    `).join('');
+
+    const pkgTags = tool.pkgs.map(p => `<span class="pkg-tag">${p}</span>`).join('');
+
+    card.innerHTML = `
+      <div class="tool-name">${tool.name}</div>
+      <div class="tool-desc">${tool.desc}</div>
+      <div class="tool-when">→ ${tool.when}</div>
+      <div class="tool-detail">
+        <div class="detail-label">Call flow</div>
+        <div class="flow-chain">${flowHTML}</div>
+        <div class="detail-label">Packages touched</div>
+        <div class="pkg-tags">${pkgTags}</div>
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      const wasActive = card.classList.contains('active');
+      document.querySelectorAll('.tool-card.active').forEach(c => c.classList.remove('active'));
+      if (!wasActive) card.classList.add('active');
+    });
+
+    grid.appendChild(card);
+  });
+
+  groupDiv.appendChild(grid);
+  groupsEl.appendChild(groupDiv);
+});
+
+// ── D3 FORCE GRAPH ───────────────────────────────────────────────
+const svg = d3.select('#graph-svg');
+const svgEl = document.getElementById('graph-svg');
+
+function buildGraph() {
+  const W = svgEl.clientWidth || 760;
+  const H = svgEl.clientHeight || 580;
+
+  svg.selectAll('*').remove();
+
+  const defs = svg.append('defs');
+  defs.append('marker')
+    .attr('id', 'arrow')
+    .attr('viewBox', '0 -4 8 8')
+    .attr('refX', 22).attr('refY', 0)
+    .attr('markerWidth', 5).attr('markerHeight', 5)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-4L8,0L0,4')
+    .attr('fill', '#2a3f5f');
+
+  const g = svg.append('g');
+
+  const zoom = d3.zoom()
+    .scaleExtent([0.3, 3])
+    .on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+
+  const nodeMap = new Map(nodes.map(n => [n.id, {...n}]));
+  const links = edges.map(e => ({ source: e.s, target: e.t }));
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+      const cats = [nodeMap.get(d.source.id || d.source)?.cat, nodeMap.get(d.target.id || d.target)?.cat];
+      if (cats.includes('foundation')) return 90;
+      if (cats.includes('entry')) return 110;
+      return 100;
+    }).strength(0.6))
+    .force('charge', d3.forceManyBody().strength(-260))
+    .force('center', d3.forceCenter(W / 2, H / 2))
+    .force('collision', d3.forceCollide(36))
+    .force('x', d3.forceX(W / 2).strength(0.04))
+    .force('y', d3.forceY(H / 2).strength(0.04));
+
+  const link = g.append('g')
+    .selectAll('line')
+    .data(links)
+    .join('line')
+    .attr('stroke', '#1e304a')
+    .attr('stroke-width', 1.2)
+    .attr('marker-end', 'url(#arrow)');
+
+  const node = g.append('g')
+    .selectAll('g')
+    .data(nodes)
+    .join('g')
+    .attr('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end',   (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  // node circles
+  node.append('circle')
+    .attr('r', d => d.cat === 'entry' ? 18 : d.cat === 'foundation' ? 14 : 13)
+    .attr('fill', d => {
+      const c = catColor[d.cat];
+      return c.replace('var(', '').replace(')', '');
+    })
+    .attr('fill', '#0d1523')
+    .attr('stroke', d => {
+      const map = {
+        entry:'#ff5572', orchestration:'#ff8c42', query:'#00d4ff',
+        storage:'#ffb830', foundation:'#9d6dff', language:'#3dffa0', intelligence:'#4d9fff'
+      };
+      return map[d.cat];
+    })
+    .attr('stroke-width', d => d.cat === 'entry' ? 2.5 : 1.8)
+    .style('filter', d => {
+      const map = {
+        entry:'drop-shadow(0 0 8px rgba(255,85,114,.6))',
+        query:'drop-shadow(0 0 6px rgba(0,212,255,.4))',
+        storage:'drop-shadow(0 0 6px rgba(255,184,48,.4))',
+        foundation:'drop-shadow(0 0 4px rgba(157,109,255,.3))',
+        orchestration:'drop-shadow(0 0 4px rgba(255,140,66,.3))',
+        language:'drop-shadow(0 0 4px rgba(61,255,160,.3))',
+        intelligence:'drop-shadow(0 0 4px rgba(77,159,255,.3))',
+      };
+      return map[d.cat] || '';
+    });
+
+  // labels
+  node.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('dy', d => d.cat === 'entry' ? 30 : 26)
+    .attr('font-size', '9px')
+    .attr('fill', '#5a7494')
+    .attr('font-family', "'SF Mono', monospace")
+    .text(d => d.label);
+
+  // icon letter
+  node.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('dy', '0.35em')
+    .attr('font-size', d => d.cat === 'entry' ? '11px' : '9px')
+    .attr('font-weight', '700')
+    .attr('fill', d => {
+      const map = {
+        entry:'#ff5572', orchestration:'#ff8c42', query:'#00d4ff',
+        storage:'#ffb830', foundation:'#9d6dff', language:'#3dffa0', intelligence:'#4d9fff'
+      };
+      return map[d.cat];
+    })
+    .attr('font-family', "'SF Mono', monospace")
+    .text(d => {
+      const m = { entry:'◉', orchestration:'⬡', query:'◈', storage:'▪', foundation:'◆', language:'◇', intelligence:'◉' };
+      return m[d.cat] || '●';
+    });
+
+  // click handler
+  node.on('click', (e, d) => {
+    e.stopPropagation();
+    showSidebar(d);
+
+    // highlight
+    node.selectAll('circle')
+      .attr('stroke-opacity', n => {
+        const depIds = new Set([d.id]);
+        edges.forEach(ed => {
+          if (ed.s === d.id) depIds.add(ed.t);
+          if (ed.t === d.id) depIds.add(ed.s);
+        });
+        return depIds.has(n.id) ? 1 : 0.15;
+      });
+
+    link.attr('stroke-opacity', l => {
+      const s = l.source.id || l.source;
+      const t = l.target.id || l.target;
+      return (s === d.id || t === d.id) ? 0.9 : 0.06;
+    }).attr('stroke', l => {
+      const s = l.source.id || l.source;
+      const t = l.target.id || l.target;
+      if (s === d.id) return '#00d4ff';
+      if (t === d.id) return '#ff5572';
+      return '#1e304a';
+    });
+
+    node.selectAll('text').attr('fill-opacity', n => {
+      const depIds = new Set([d.id]);
+      edges.forEach(ed => {
+        if (ed.s === d.id) depIds.add(ed.t);
+        if (ed.t === d.id) depIds.add(ed.s);
+      });
+      return depIds.has(n.id) ? 1 : 0.2;
+    });
+  });
+
+  svg.on('click', () => {
+    node.selectAll('circle').attr('stroke-opacity', 1);
+    link.attr('stroke-opacity', 0.5).attr('stroke', '#1e304a');
+    node.selectAll('text').attr('fill-opacity', 1);
+    document.getElementById('graph-sidebar').innerHTML = '<div class="sidebar-empty">← Click any node<br/>to explore the package</div>';
+  });
+
+  sim.on('tick', () => {
+    link
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+
+  document.getElementById('btn-reset').onclick = () => {
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+  };
+  document.getElementById('btn-reheat').onclick = () => {
+    sim.alpha(0.6).restart();
+  };
+
+  window._sim = sim;
+}
+
+function showSidebar(d) {
+  const catLabel = {
+    entry:'Entry Point', orchestration:'Orchestration', query:'Query / Graph',
+    storage:'Storage', foundation:'Foundation', language:'Language Adapter', intelligence:'Intelligence'
+  };
+  const catClr = {
+    entry:'#ff5572', orchestration:'#ff8c42', query:'#00d4ff',
+    storage:'#ffb830', foundation:'#9d6dff', language:'#3dffa0', intelligence:'#4d9fff'
+  };
+
+  const deps = edges.filter(e => e.s === d.id).map(e => e.t);
+  const rdeps = edges.filter(e => e.t === d.id).map(e => e.s);
+
+  const depHTML = deps.map(id => {
+    const n = nodes.find(x => x.id === id);
+    const c = catClr[n?.cat] || '#5a7494';
+    return `<div class="dep-item"><div class="dep-dot" style="border-radius:50%;background:${c}22;border:1.5px solid ${c}"></div><span style="color:${c}">${id}</span></div>`;
+  }).join('') || '<div style="font-size:11px;color:var(--muted);padding:4px 8px">none — leaf package</div>';
+
+  const rdepHTML = rdeps.length > 0
+    ? rdeps.map(id => {
+        const n = nodes.find(x => x.id === id);
+        const c = catClr[n?.cat] || '#5a7494';
+        return `<div class="dep-item"><div class="dep-dot" style="border-radius:50%;background:${c}22;border:1.5px solid ${c}"></div><span style="color:${c}">${id}</span></div>`;
+      }).join('')
+    : '<div style="font-size:11px;color:var(--muted);padding:4px 8px">none — root package</div>';
+
+  const clr = catClr[d.cat] || '#5a7494';
+
+  document.getElementById('graph-sidebar').innerHTML = `
+    <div class="sidebar-name">
+      ${d.id}
+      <span class="sidebar-cat" style="color:${clr};background:${clr}18;border:1px solid ${clr}40">${catLabel[d.cat]}</span>
+    </div>
+    <div class="sidebar-desc">${d.desc}</div>
+    <div class="sidebar-deps-title">Depends on (${deps.length})</div>
+    <div class="dep-list">${depHTML}</div>
+    <div class="sidebar-deps-title" style="margin-top:16px">Used by (${rdeps.length})</div>
+    <div class="dep-list">${rdepHTML}</div>
+  `;
+}
+
+// init
+requestAnimationFrame(buildGraph);
+window.addEventListener('resize', () => {
+  requestAnimationFrame(buildGraph);
+});
+</script>
+</body>
+</html>
