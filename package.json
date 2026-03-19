@@ -15,12 +15,11 @@
     "dev": "node apps/mcp-server/dist/cli.js",
     "package:npm": "tsc -b tsconfig.json --pretty false && node scripts/prepare-npm-package.mjs",
     "pack:npm": "npm run package:npm && node scripts/pack-release-package.mjs",
-    "test": "tsc -b tsconfig.json && tsc -p tsconfig.tests.json && node --test --test-concurrency=1 --test-isolation=none .test-dist/tests/*.test.js",
+    "test": "tsc -b tsconfig.json && tsc -p tsconfig.tests.json && node scripts/run-node-tests.mjs",
     "typecheck": "tsc -b tsconfig.json --pretty false"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "typescript": "^5.8.3",
-    "vitest": "4.1.0"
+    "typescript": "^5.8.3"
   }
 }
