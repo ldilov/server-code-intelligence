@@ -1,11 +1,5 @@
 # Local Engineering Brain
 
-## Website
-
-This project has a live page here:
-
-**[VISIT WEBPAGE](https://ldilov.github.io/server-code-intelligence/)**
-
 Local-first MCP server that gives AI clients durable, repo-aware engineering context from your own machine.
 
 ## What This MCP Is

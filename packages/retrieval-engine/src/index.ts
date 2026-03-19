@@ -2,6 +2,8 @@ import path from "node:path";
 import type {
   ArchitectureViolationRecord,
   BranchChangeSummary,
+  ChangedFileRecord,
+  CommitRecord,
   EdgeRecord,
   EvidenceBundle,
   EvidenceReference,
@@ -9,6 +11,7 @@ import type {
   LogEventRecord,
   LogLevel,
   ModuleRecord,
+  PackageRecord,
   SearchHit,
   SymbolRecord,
   TestFailureAnalysis,
@@ -20,6 +23,43 @@ import { BrainDatabase } from "@local-engineering-brain/storage-sqlite";
 
 interface RankedSearchHit extends SearchHit {
   matchedTokens: string[];
+}
+
+// ─── Review Context Types ───────────────────────────────────────────────────
+
+export interface ReviewModuleRisk {
+  module: ModuleRecord;
+  /** Number of modules that depend on this one (fan-in). */
+  fanIn: number;
+  /** Number of recent commits touching this module's file. */
+  changeFrequency: number;
+  /** Whether any test suite covers this module. */
+  hasCoverage: boolean;
+  /** Architecture violations introduced by this module. */
+  violations: ArchitectureViolationRecord[];
+  /** Computed risk score: higher = riskier. */
+  riskScore: number;
+}
+
+export interface ReviewContext {
+  /** Modules affected by the changes. */
+  changedModules: ModuleRecord[];
+  /** All modules impacted via dependency graph (reverse deps of changed). */
+  impactedModules: ModuleRecord[];
+  /** Per-module risk analysis, sorted by risk score descending. */
+  moduleRisks: ReviewModuleRisk[];
+  /** Packages containing changed modules. */
+  affectedPackages: PackageRecord[];
+  /** Test suites that cover changed modules. */
+  testCoverage: Array<{ modulePath: string; testCount: number }>;
+  /** Modules with no test coverage (gaps). */
+  testGaps: string[];
+  /** Architecture violations on changed modules. */
+  violations: ArchitectureViolationRecord[];
+  /** Recent commits for context. */
+  recentCommits: CommitRecord[];
+  /** Diagnostic notes. */
+  notes: string[];
 }
 
 function bundle(primary: EvidenceReference, related: EvidenceReference[] = [], edges: EdgeRecord[] = [], notes: string[] = []): EvidenceBundle {
@@ -513,6 +553,140 @@ export class RetrievalEngine {
         notes
       },
       suggested_next_tools: incidents.length > 0 ? ["query_logs", "analyze_test_failures", "summarize_branch_changes"] : ["query_logs", "summarize_branch_changes"]
+    };
+  }
+
+  // ─── Code Review Context ────────────────────────────────────────────────
+
+  public getReviewContext(workspaceId: string): ToolResponse<ReviewContext> {
+    const notes: string[] = [];
+
+    // 1. Get changed modules from the latest change group
+    const changeGroup = this.database.getLatestChangeGroup(workspaceId);
+    if (!changeGroup) {
+      return {
+        summary: "No branch change data available. Index the workspace first.",
+        confidence: 0.2,
+        evidence: [],
+        structured_data: {
+          changedModules: [],
+          impactedModules: [],
+          moduleRisks: [],
+          affectedPackages: [],
+          testCoverage: [],
+          testGaps: [],
+          violations: [],
+          recentCommits: [],
+          notes: ["No persisted git change snapshot available."]
+        },
+        suggested_next_tools: ["index_workspace"]
+      };
+    }
+
+    const changedModules = this.database.listModulesForChangeGroup(workspaceId, changeGroup.id);
+    if (changedModules.length === 0) {
+      notes.push("No indexed modules matched the changed files.");
+    }
+
+    // 2. Compute impact: reverse dependencies of all changed modules
+    const impactedSet = new Map<string, ModuleRecord>();
+    for (const module of changedModules) {
+      const traversal = this.graph.getReverseDependencies(workspaceId, module.id, 2);
+      for (const impacted of traversal.modules) {
+        if (impacted.id !== module.id) {
+          impactedSet.set(impacted.id, impacted);
+        }
+      }
+    }
+    const impactedModules = [...impactedSet.values()];
+
+    // 3. Test coverage analysis
+    const testCoverage: ReviewContext["testCoverage"] = [];
+    const testGaps: string[] = [];
+    const coverageByModuleId = new Map<string, number>();
+
+    for (const module of changedModules) {
+      const candidates = this.database.listTestCandidatesForModuleIds(workspaceId, [module.id]);
+      coverageByModuleId.set(module.id, candidates.length);
+      if (candidates.length > 0) {
+        testCoverage.push({ modulePath: module.canonicalPath, testCount: candidates.length });
+      } else {
+        testGaps.push(module.canonicalPath);
+      }
+    }
+
+    // 4. Architecture violations on changed modules
+    const allViolations = this.database.listArchitectureViolations(workspaceId);
+    const changedModuleIds = new Set(changedModules.map((m) => m.id));
+    const violations = allViolations.filter(
+      (v) => changedModuleIds.has(v.sourceModuleId) || changedModuleIds.has(v.targetModuleId)
+    );
+
+    // 5. Affected packages
+    const packageIds = [...new Set(changedModules.map((m) => m.packageId).filter(Boolean))] as string[];
+    const affectedPackages = this.database.listPackagesByIds(packageIds);
+
+    // 6. Recent commits
+    const recentCommits = this.database.listRecentCommits(workspaceId, 10);
+
+    // 7. Per-module risk scoring
+    const moduleRisks: ReviewModuleRisk[] = changedModules.map((module) => {
+      const reverseDeps = this.graph.getReverseDependencies(workspaceId, module.id, 1);
+      const fanIn = reverseDeps.modules.filter((m) => m.id !== module.id).length;
+      const hasCoverage = (coverageByModuleId.get(module.id) ?? 0) > 0;
+      const moduleViolations = violations.filter((v) => v.sourceModuleId === module.id);
+
+      // Heuristic: commits touching this file indicate change frequency
+      const changeFrequency = recentCommits.length; // simplified — ideally per-file
+
+      // Risk formula: fanIn * changeFrequency * coverage penalty * violation penalty
+      const coveragePenalty = hasCoverage ? 0.5 : 1.0;
+      const violationPenalty = 1.0 + moduleViolations.length * 0.3;
+      const riskScore = Math.round((fanIn + 1) * (1 + changeFrequency * 0.1) * coveragePenalty * violationPenalty * 100) / 100;
+
+      return {
+        module,
+        fanIn,
+        changeFrequency,
+        hasCoverage,
+        violations: moduleViolations,
+        riskScore
+      };
+    }).sort((a, b) => b.riskScore - a.riskScore);
+
+    // Build evidence bundles
+    const evidence = moduleRisks.slice(0, 10).map((risk) =>
+      bundle(
+        moduleReference(risk.module, risk.riskScore),
+        [],
+        [],
+        [
+          `Fan-in: ${risk.fanIn}`,
+          `Coverage: ${risk.hasCoverage ? "yes" : "NO"}`,
+          `Violations: ${risk.violations.length}`,
+          `Risk score: ${risk.riskScore}`
+        ]
+      )
+    );
+
+    return {
+      summary: `Review context: ${changedModules.length} changed module(s), ${impactedModules.length} impacted, ${testGaps.length} test gap(s), ${violations.length} violation(s).`,
+      confidence: changedModules.length > 0 ? 0.85 : 0.3,
+      evidence,
+      structured_data: {
+        changedModules,
+        impactedModules,
+        moduleRisks,
+        affectedPackages,
+        testCoverage,
+        testGaps,
+        violations,
+        recentCommits,
+        notes
+      },
+      suggested_next_tools: testGaps.length > 0
+        ? ["analyze_test_failures", "estimate_blast_radius", "check_architecture_violations"]
+        : ["estimate_blast_radius", "check_architecture_violations"]
     };
   }
 }

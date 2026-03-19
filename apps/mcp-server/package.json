@@ -1,6 +1,6 @@
 {
   "name": "local-engineering-brain",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local graph-backed MCP server for engineering intelligence.",
   "type": "module",
   "main": "dist/index.js",
@@ -18,9 +18,11 @@
     }
   },
   "dependencies": {
+    "@local-engineering-brain/context-bundler": "file:../../packages/context-bundler",
     "@local-engineering-brain/graph-engine": "file:../../packages/graph-engine",
     "@local-engineering-brain/indexer": "file:../../packages/indexer",
     "@local-engineering-brain/retrieval-engine": "file:../../packages/retrieval-engine",
+    "@local-engineering-brain/retrospect-log": "file:../../packages/retrospect-log",
     "@local-engineering-brain/shared-utils": "file:../../packages/shared-utils",
     "@local-engineering-brain/storage-sqlite": "file:../../packages/storage-sqlite",
     "@local-engineering-brain/tool-contracts": "file:../../packages/tool-contracts",

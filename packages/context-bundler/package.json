@@ -1,0 +1,20 @@
+{
+  "name": "@local-engineering-brain/context-bundler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@local-engineering-brain/core-types": "file:../core-types",
+    "@local-engineering-brain/shared-utils": "file:../shared-utils",
+    "@local-engineering-brain/storage-sqlite": "file:../storage-sqlite",
+    "@local-engineering-brain/graph-engine": "file:../graph-engine"
+  }
+}

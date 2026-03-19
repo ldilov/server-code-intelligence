@@ -19,7 +19,7 @@ import {
   discoverCandidateFiles,
   readCandidateText
 } from "@local-engineering-brain/discovery-engine";
-import { GitIntelCollector } from "@local-engineering-brain/git-intel";
+import { GitIntelCollector, type GitSnapshot } from "@local-engineering-brain/git-intel";
 import {
   AdapterRegistry,
   FileBackedModuleIdentityProvider,
@@ -507,5 +507,287 @@ export class WorkspaceIndexer {
       filesSkipped,
       warnings
     };
+  }
+
+  /**
+   * Incremental index: re-index only files that changed according to git status.
+   * This is much faster than a full indexWorkspace() call because it:
+   *   1. Skips full file discovery (uses git status + git diff instead)
+   *   2. Only re-extracts facts for changed files
+   *   3. Still updates change groups, architecture rules, and logs
+   *
+   * Requires that the workspace has been fully indexed at least once.
+   */
+  public async indexChanged(workspace: WorkspaceRecord): Promise<IndexWorkspaceResult> {
+    const warnings: string[] = [];
+
+    // Collect git status to find dirty files
+    const repository = detectRepository(workspace);
+    const gitSnapshot = this.gitCollector.collect(workspace.rootPath, workspace.id, repository.id);
+
+    if (!gitSnapshot.isRepository) {
+      warnings.push("Not a git repository — falling back to full index.");
+      return this.indexWorkspace(workspace);
+    }
+
+    if (gitSnapshot.changedFiles.length === 0) {
+      warnings.push("No changed files detected. Index is already up to date.");
+
+      // Still refresh change groups and git metadata
+      this.refreshGitMetadata(workspace, repository, gitSnapshot, warnings);
+
+      return {
+        workspaceId: workspace.id,
+        filesDiscovered: 0,
+        filesIndexed: 0,
+        filesSkipped: 0,
+        warnings
+      };
+    }
+
+    // Resolve changed file absolute paths
+    const changedAbsPaths = gitSnapshot.changedFiles
+      .filter((f) => f.status !== "deleted")
+      .map((f) => normalizePath(path.join(workspace.rootPath, f.path)));
+
+    // Handle deleted files
+    const deletedPaths = gitSnapshot.changedFiles
+      .filter((f) => f.status === "deleted")
+      .map((f) => normalizePath(path.join(workspace.rootPath, f.path)));
+
+    for (const deletedPath of deletedPaths) {
+      this.database.deleteModuleByPath(workspace.id, deletedPath);
+      this.database.deleteTestFactsByPath(workspace.id, deletedPath);
+    }
+
+    // Set up classification context
+    const workspaceHints = await collectManifestHints(workspace.rootPath);
+    const runtimeConventions = createRuntimeConventions(workspaceHints);
+    const packages = await discoverPackages(workspace, repository, workspaceHints);
+    const matcher = await readIgnoreMatcher(workspace.rootPath, runtimeConventions.ignoreDirectories);
+
+    const detectionContext = {
+      workspaceRoot: workspace.rootPath,
+      runtimeConventions,
+      workspaceHints
+    };
+
+    // Classify only changed files
+    const classifiedCandidates: ClassifiedCandidate[] = [];
+    for (const absPath of changedAbsPaths) {
+      if (matcher.ignores(path.relative(workspace.rootPath, absPath))) {
+        continue;
+      }
+      const relPath = normalizePath(path.relative(workspace.rootPath, absPath));
+      const candidate: CandidateFile = {
+        absPath,
+        relPath,
+        extension: path.extname(absPath).slice(1),
+        mtimeMs: Date.now()
+      };
+
+      const sourceText = await readCandidateText(candidate, runtimeConventions);
+      classifiedCandidates.push({
+        candidate,
+        classification: this.classifier.classify(candidate, sourceText, detectionContext),
+        sourceText
+      });
+    }
+
+    // Build module catalog from ALL known files (existing + changed) for reference resolution
+    const existingFiles = this.database.listWorkspaceFiles(workspace.id);
+    const existingCatalogEntries = existingFiles.map((f) => ({
+      path: f.path,
+      relativePath: normalizePath(path.relative(workspace.rootPath, f.path)),
+      language: f.language
+    }));
+    const changedCatalogEntries = classifiedCandidates
+      .filter((e) => isIndexableClassification(e.classification))
+      .map(({ candidate, classification }) => ({
+        path: candidate.absPath,
+        relativePath: candidate.relPath,
+        language: classification.language
+      }));
+
+    const workspaceModuleCatalog = createWorkspaceModuleCatalog([
+      ...existingCatalogEntries,
+      ...changedCatalogEntries
+    ]);
+
+    // Index changed files
+    let filesIndexed = 0;
+    let filesSkipped = 0;
+
+    for (const entry of classifiedCandidates) {
+      const { candidate, classification, sourceText } = entry;
+
+      if (!isIndexableClassification(classification)) {
+        filesSkipped += 1;
+        continue;
+      }
+
+      if (sourceText === undefined) {
+        warnings.push(`Failed to read ${candidate.relPath}; keeping last known indexed facts.`);
+        continue;
+      }
+
+      const contentHash = sha256(sourceText);
+      const assignedPackage = findNearestPackage(candidate.absPath, packages);
+      const moduleIdentity = this.registry.resolveModuleIdentity({ candidate, classification, sourceText });
+
+      const context: ParserContextV2 = {
+        workspaceId: workspace.id,
+        workspaceRoot: workspace.rootPath,
+        repoId: repository.id,
+        packageId: assignedPackage?.id,
+        filePath: candidate.absPath,
+        relativePath: candidate.relPath,
+        hash: contentHash,
+        now: nowIso(),
+        classification,
+        moduleIdentity,
+        workspaceModuleCatalog
+      };
+
+      const adapter = this.registry.getLanguageAdapter(candidate, classification);
+      const extractorVersion = adapter?.id === this.tsAdapter.id
+        ? `${this.tsExtractor.extractorVersion}|${this.testIntelVersion}`
+        : adapter?.id === this.csharpAdapter.id
+          ? this.csharpAdapter.extractorVersion
+          : adapter?.id === this.luaAdapter.id
+            ? this.luaAdapter.extractorVersion
+            : `${this.evidenceExtractorVersion}:${classification.kind}:${classification.language ?? "unknown"}`;
+      const parserVersion = adapter?.id === this.tsAdapter.id
+        ? `${this.tsExtractor.parserVersion}|${this.routingVersion}`
+        : adapter?.id === this.csharpAdapter.id
+          ? `${this.csharpAdapter.parserVersion}|${this.routingVersion}`
+          : adapter?.id === this.luaAdapter.id
+            ? `${this.luaAdapter.parserVersion}|${this.routingVersion}`
+            : this.routingVersion;
+
+      // Skip unchanged files (hash + versions match)
+      const existingHash = this.database.getFileHash(workspace.id, candidate.absPath);
+      if (
+        existingHash &&
+        existingHash.contentHash === contentHash &&
+        existingHash.extractorVersion === extractorVersion &&
+        existingHash.parserVersion === parserVersion
+      ) {
+        filesSkipped += 1;
+        continue;
+      }
+
+      try {
+        const extraction = adapter
+          ? (adapter.extract(context, sourceText) as { facts: ExtractedFileFact; warnings: string[] })
+          : { facts: buildEvidenceFact(context), warnings: [] as string[] };
+
+        this.database.replaceFileFact(extraction.facts);
+
+        if (shouldRunTestExtraction(classification)) {
+          const testFact = this.testExtractor.extract(
+            {
+              workspaceId: context.workspaceId,
+              workspaceRoot: context.workspaceRoot,
+              repoId: context.repoId,
+              packageId: context.packageId,
+              filePath: context.filePath,
+              relativePath: context.relativePath,
+              hash: context.hash,
+              now: context.now
+            },
+            sourceText
+          );
+
+          if (testFact) {
+            this.database.replaceTestFact(workspace.id, candidate.absPath, testFact);
+            warnings.push(...testFact.warnings);
+          } else {
+            this.database.deleteTestFactsByPath(workspace.id, candidate.absPath);
+          }
+        } else {
+          this.database.deleteTestFactsByPath(workspace.id, candidate.absPath);
+        }
+
+        this.database.recordFileHash(workspace.id, candidate.absPath, contentHash, extractorVersion, parserVersion);
+        warnings.push(...extraction.warnings);
+        warnings.push(...extraction.facts.warnings);
+        filesIndexed += 1;
+      } catch (error) {
+        warnings.push(`Failed to parse ${candidate.relPath}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Refresh git metadata, change groups, architecture rules, logs
+    this.refreshGitMetadata(workspace, repository, gitSnapshot, warnings);
+
+    // Re-evaluate architecture rules for the whole workspace (fast since it's in-memory)
+    const architectureConfig = await loadArchitectureRules(workspace.rootPath);
+    const architectureViolations = evaluateArchitectureRules({
+      workspaceId: workspace.id,
+      workspaceRoot: workspace.rootPath,
+      modules: this.database.listWorkspaceModules(workspace.id),
+      importEdges: this.database.listImportEdges(workspace.id),
+      config: architectureConfig
+    });
+    this.database.replaceArchitectureViolations(workspace.id, architectureViolations);
+
+    // Re-collect logs
+    const logConfig = await loadLogIntelConfig(workspace.rootPath);
+    const logCollection = await collectConfiguredLogs(workspace.rootPath, workspace.id, logConfig);
+    this.database.replaceWorkspaceLogs(workspace.id, logCollection.events, logCollection.incidents);
+    warnings.push(...logCollection.warnings);
+
+    this.database.touchWorkspaceIndexedAt(workspace.id);
+
+    return {
+      workspaceId: workspace.id,
+      filesDiscovered: classifiedCandidates.length + deletedPaths.length,
+      filesIndexed,
+      filesSkipped,
+      warnings
+    };
+  }
+
+  // ─── Private helpers ──────────────────────────────────────────────────────
+
+  private refreshGitMetadata(
+    workspace: WorkspaceRecord,
+    repository: RepositoryRecord,
+    gitSnapshot: GitSnapshot,
+    warnings: string[]
+  ): void {
+    const repoNow = nowIso();
+    this.database.upsertRepository({
+      ...repository,
+      vcsType: gitSnapshot.isRepository ? "git" : "none",
+      branchName: gitSnapshot.branchName,
+      updatedAt: repoNow
+    });
+    this.database.replaceCommits(workspace.id, repository.id, gitSnapshot.recentCommits);
+
+    const changedFiles = gitSnapshot.changedFiles.map((file) => ({
+      ...file,
+      path: normalizePath(path.join(workspace.rootPath, file.path)),
+      previousPath: file.previousPath ? normalizePath(path.join(workspace.rootPath, file.previousPath)) : undefined
+    }));
+    const changedPaths = [...new Set(changedFiles.flatMap((file) => [file.path, file.previousPath].filter(Boolean) as string[]))];
+    const changedModules = this.database.listModulesByPaths(workspace.id, changedPaths);
+    const changedSymbolIds = changedModules.flatMap((module) => this.database.listModuleSymbols(module.id).map((symbol) => symbol.id));
+
+    this.database.replaceChangeGroup(
+      {
+        id: stableId("change-group", workspace.id, gitSnapshot.branchName ?? "detached"),
+        workspaceId: workspace.id,
+        repoId: repository.id,
+        branchName: gitSnapshot.branchName,
+        changedFiles,
+        source: "working_tree",
+        updatedAt: repoNow
+      },
+      changedModules.map((module) => module.id),
+      changedSymbolIds
+    );
+    warnings.push(...gitSnapshot.notes);
   }
 }

@@ -74,6 +74,12 @@
       ],
       "@local-engineering-brain/retrieval-engine": [
         "packages/retrieval-engine/src/index.ts"
+      ],
+      "@local-engineering-brain/retrospect-log": [
+        "packages/retrospect-log/src/index.ts"
+      ],
+      "@local-engineering-brain/context-bundler": [
+        "packages/context-bundler/src/index.ts"
       ]
     }
   }

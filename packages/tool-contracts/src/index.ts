@@ -76,6 +76,43 @@ export const buildIncidentTimelineInputSchema = workspaceScopedInputSchema.exten
   limit: z.number().int().positive().max(100).default(20)
 });
 
+// ─── Phase 1: New tool contracts ────────────────────────────────────────────
+
+export const indexChangedInputSchema = workspaceScopedInputSchema;
+
+export const getContextBundleInputSchema = workspaceScopedInputSchema.extend({
+  modulePath: z.string().min(1),
+  tokenBudget: z.number().int().positive().max(128000).default(8000),
+  depth: z.number().int().positive().max(5).default(2),
+  includeTests: z.boolean().default(false),
+  includeUsage: z.boolean().default(false),
+  includeChanges: z.boolean().default(true)
+});
+
+export const getReviewContextInputSchema = workspaceScopedInputSchema.extend({
+  diff: z.string().optional()
+});
+
+export const getRetrospectLogInputSchema = z.object({
+  toolName: z.string().min(1).optional(),
+  success: z.boolean().optional(),
+  workspaceId: z.string().min(1).optional(),
+  sinceSeq: z.number().int().nonnegative().optional(),
+  limit: z.number().int().positive().max(500).default(50)
+});
+
+export const flushRetrospectLogInputSchema = z.object({
+  clear: z.boolean().default(false),
+  toolName: z.string().min(1).optional(),
+  format: z.enum(["markdown", "json"]).default("markdown")
+});
+
+export type IndexChangedInput = z.infer<typeof indexChangedInputSchema>;
+export type GetContextBundleInput = z.infer<typeof getContextBundleInputSchema>;
+export type GetReviewContextInput = z.infer<typeof getReviewContextInputSchema>;
+export type GetRetrospectLogInput = z.infer<typeof getRetrospectLogInputSchema>;
+export type FlushRetrospectLogInput = z.infer<typeof flushRetrospectLogInputSchema>;
+
 export type IndexWorkspaceInput = z.infer<typeof indexWorkspaceInputSchema>;
 export type IndexStatusInput = z.infer<typeof indexStatusInputSchema>;
 export type SearchCodeInput = z.infer<typeof searchCodeInputSchema>;

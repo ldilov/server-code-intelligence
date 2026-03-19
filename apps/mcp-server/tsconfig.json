@@ -9,6 +9,9 @@
   ],
   "references": [
     {
+      "path": "../../packages/context-bundler"
+    },
+    {
       "path": "../../packages/graph-engine"
     },
     {
@@ -16,6 +19,9 @@
     },
     {
       "path": "../../packages/retrieval-engine"
+    },
+    {
+      "path": "../../packages/retrospect-log"
     },
     {
       "path": "../../packages/shared-utils"

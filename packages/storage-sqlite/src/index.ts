@@ -915,18 +915,20 @@ export class BrainDatabase {
 
   public listWorkspaceFiles(workspaceId: string): FileRecord[] {
     const rows = this.db.prepare(`SELECT * FROM files WHERE workspace_id = ? ORDER BY path ASC`).all(workspaceId) as RowRecord[];
-    return rows.map((row) => ({
-      id: String(row.id),
-      workspaceId: String(row.workspace_id),
-      repoId: String(row.repo_id),
-      packageId: row.package_id ? String(row.package_id) : undefined,
-      path: String(row.path),
-      language: String(row.language),
-      summary: String(row.summary),
-      authored: Number(row.authored) === 1,
-      hash: String(row.hash),
-      updatedAt: String(row.updated_at)
-    }));
+    return rows.map((row) => this.mapFile(row));
+  }
+
+  public getFile(fileId: string): FileRecord | undefined {
+    const row = this.db.prepare(`SELECT * FROM files WHERE id = ?`).get(fileId) as RowRecord | undefined;
+    return row ? this.mapFile(row) : undefined;
+  }
+
+  public getFileByModuleId(moduleId: string): FileRecord | undefined {
+    const module = this.getModule(moduleId);
+    if (!module) {
+      return undefined;
+    }
+    return this.getFile(module.fileId);
   }
 
   public deleteModuleByPath(workspaceId: string, modulePath: string): void {
@@ -1074,6 +1076,21 @@ export class BrainDatabase {
     for (const row of inbound) {
       setInbound.run(Number(row.count), String(row.target_id));
     }
+  }
+
+  private mapFile(row: RowRecord): FileRecord {
+    return {
+      id: String(row.id),
+      workspaceId: String(row.workspace_id),
+      repoId: String(row.repo_id),
+      packageId: row.package_id ? String(row.package_id) : undefined,
+      path: String(row.path),
+      language: String(row.language),
+      summary: String(row.summary),
+      authored: Number(row.authored) === 1,
+      hash: String(row.hash),
+      updatedAt: String(row.updated_at)
+    };
   }
 
   private mapWorkspace(row: RowRecord): WorkspaceRecord {
