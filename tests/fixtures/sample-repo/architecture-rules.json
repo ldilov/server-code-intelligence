@@ -1,0 +1,14 @@
+{
+  "generatedPatterns": [
+    "src/generated/**"
+  ],
+  "rules": [
+    {
+      "id": "api-no-lib",
+      "kind": "forbid",
+      "from": "src/api/**",
+      "to": "src/lib/**",
+      "severity": "error"
+    }
+  ]
+}

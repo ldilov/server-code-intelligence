@@ -1,0 +1,19 @@
+{
+  "name": "@local-engineering-brain/manifest-intel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@local-engineering-brain/language-core": "file:../language-core",
+    "@local-engineering-brain/shared-utils": "file:../shared-utils",
+    "fast-glob": "^3.3.3"
+  }
+}

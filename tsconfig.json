@@ -1,0 +1,62 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/core-types"
+    },
+    {
+      "path": "./packages/language-core"
+    },
+    {
+      "path": "./packages/language-csharp"
+    },
+    {
+      "path": "./packages/language-lua"
+    },
+    {
+      "path": "./packages/discovery-engine"
+    },
+    {
+      "path": "./packages/manifest-intel"
+    },
+    {
+      "path": "./packages/shared-utils"
+    },
+    {
+      "path": "./packages/tool-contracts"
+    },
+    {
+      "path": "./packages/workspace-manager"
+    },
+    {
+      "path": "./packages/storage-sqlite"
+    },
+    {
+      "path": "./packages/language-ts"
+    },
+    {
+      "path": "./packages/indexer"
+    },
+    {
+      "path": "./packages/git-intel"
+    },
+    {
+      "path": "./packages/graph-engine"
+    },
+    {
+      "path": "./packages/architecture-rules"
+    },
+    {
+      "path": "./packages/test-intel"
+    },
+    {
+      "path": "./packages/log-intel"
+    },
+    {
+      "path": "./packages/retrieval-engine"
+    },
+    {
+      "path": "./apps/mcp-server"
+    }
+  ]
+}

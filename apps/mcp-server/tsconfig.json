@@ -1,0 +1,33 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../../packages/graph-engine"
+    },
+    {
+      "path": "../../packages/indexer"
+    },
+    {
+      "path": "../../packages/retrieval-engine"
+    },
+    {
+      "path": "../../packages/shared-utils"
+    },
+    {
+      "path": "../../packages/storage-sqlite"
+    },
+    {
+      "path": "../../packages/tool-contracts"
+    },
+    {
+      "path": "../../packages/workspace-manager"
+    }
+  ]
+}

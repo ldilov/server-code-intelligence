@@ -1,0 +1,31 @@
+{
+  "name": "@local-engineering-brain/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@local-engineering-brain/architecture-rules": "file:../architecture-rules",
+    "@local-engineering-brain/core-types": "file:../core-types",
+    "@local-engineering-brain/discovery-engine": "file:../discovery-engine",
+    "@local-engineering-brain/git-intel": "file:../git-intel",
+    "@local-engineering-brain/language-csharp": "file:../language-csharp",
+    "@local-engineering-brain/language-core": "file:../language-core",
+    "@local-engineering-brain/language-lua": "file:../language-lua",
+    "@local-engineering-brain/language-ts": "file:../language-ts",
+    "@local-engineering-brain/log-intel": "file:../log-intel",
+    "@local-engineering-brain/manifest-intel": "file:../manifest-intel",
+    "@local-engineering-brain/shared-utils": "file:../shared-utils",
+    "@local-engineering-brain/storage-sqlite": "file:../storage-sqlite",
+    "@local-engineering-brain/test-intel": "file:../test-intel",
+    "fast-glob": "^3.3.3",
+    "ignore": "^7.0.4"
+  }
+}

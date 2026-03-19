@@ -1,0 +1,42 @@
+name: Release Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm install
+      - run: npm run package:npm
+      - run: npm pack
+        working-directory: ./.release/local-engineering-brain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: local-engineering-brain-package
+          path: ./.release/local-engineering-brain/*.tgz
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm install
+      - run: npm run package:npm
+      - run: npm publish --access public
+        working-directory: ./.release/local-engineering-brain
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

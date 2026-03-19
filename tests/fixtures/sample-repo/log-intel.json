@@ -1,0 +1,10 @@
+{
+  "logs": [
+    {
+      "name": "api",
+      "path": "logs/api.log",
+      "service": "api",
+      "format": "line"
+    }
+  ]
+}

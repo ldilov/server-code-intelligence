@@ -1,0 +1,25 @@
+{
+  "name": "local-engineering-brain-workspace",
+  "private": false,
+  "author": "Lazar Dilov",
+  "version": "0.2.4",
+  "description": "Monorepo for the Local Engineering Brain MCP server.",
+  "packageManager": "pnpm@10.6.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b tsconfig.json",
+    "clean": "node scripts/clean.mjs",
+    "dev": "node apps/mcp-server/dist/cli.js",
+    "package:npm": "tsc -b tsconfig.json --pretty false && node scripts/prepare-npm-package.mjs",
+    "pack:npm": "npm run package:npm && node scripts/pack-release-package.mjs",
+    "test": "tsc -b tsconfig.json && tsc -p tsconfig.tests.json && node --test --test-concurrency=1 --test-isolation=none .test-dist/tests/*.test.js",
+    "typecheck": "tsc -b tsconfig.json --pretty false"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3"
+  }
+}

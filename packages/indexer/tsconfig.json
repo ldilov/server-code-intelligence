@@ -1,0 +1,51 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../core-types"
+    },
+    {
+      "path": "../language-core"
+    },
+    {
+      "path": "../language-csharp"
+    },
+    {
+      "path": "../language-lua"
+    },
+    {
+      "path": "../discovery-engine"
+    },
+    {
+      "path": "../language-ts"
+    },
+    {
+      "path": "../manifest-intel"
+    },
+    {
+      "path": "../shared-utils"
+    },
+    {
+      "path": "../git-intel"
+    },
+    {
+      "path": "../test-intel"
+    },
+    {
+      "path": "../log-intel"
+    },
+    {
+      "path": "../architecture-rules"
+    },
+    {
+      "path": "../storage-sqlite"
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+# Local Engineering Brain
+
+Local-first MCP server that gives AI clients durable, repo-aware engineering context from your own machine.
+
+## What This MCP Is
+
+Local Engineering Brain indexes a workspace into a local SQLite knowledge base and exposes that knowledge through MCP tools. Instead of forcing an AI to repeatedly scan raw files, it gives the model structured access to:
+
+- code modules and symbols
+- dependency relationships
+- branch-local changes
+- architecture violations
+- deterministic test impact
+- workspace logs and incident timelines
+
+Everything stays local. There is no cloud sync or remote indexing service. When the MCP host launches the server from an active coding workspace, the server can bootstrap that current folder automatically; otherwise it stays in safe local-only mode until a workspace is provided.
+
+## How It Helps Users
+
+This MCP helps users who want their AI assistant to answer engineering questions with real project context instead of generic guesses.
+
+It is useful for:
+
+- understanding unfamiliar codebases faster
+- tracing dependencies before changing code
+- estimating blast radius before a refactor
+- checking whether a branch breaks architecture boundaries
+- identifying likely affected tests after local changes
+- correlating branch changes with workspace logs and incidents
+
+## Quick Start
+
+Add it to an MCP client with `npx`:
+
+```json
+{
+  "mcpServers": {
+    "local-engineering-brain": {
+      "command": "npx",
+      "args": ["-y", "local-engineering-brain"]
+    }
+  }
+}
+```
+
+Optional overrides:
+
+```json
+{
+  "mcpServers": {
+    "local-engineering-brain": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "local-engineering-brain",
+        "--data-dir",
+        "C:\\Users\\you\\.local-engineering-brain",
+        "--workspace",
+        "D:\\Workspace\\my-repo"
+      ]
+    }
+  }
+}
+```
+
+Safe defaults:
+
+- explicit `--workspace` always wins
+- otherwise the server tries to use the active AI workspace from host environment hints or the current working directory
+- if no credible workspace is available, no workspace is auto-indexed
+- `index_workspace` is the approval boundary for repo crawling
+- local state is stored under `~/.local-engineering-brain/`
+
+## Supported Indexing
+
+- deep parsing for TypeScript and JavaScript
+- guaranteed discovery and evidence-backed indexing for C# and Lua
+- manifest, config, and documentation indexing as local evidence
+- git, architecture, test, and log intelligence on top of the indexed workspace
+
+## Tool Table
+
+| Tool | What It Does | Typical User Benefit |
+| --- | --- | --- |
+| `index_workspace` | Allowlists and indexes a workspace. | Gives the AI durable project context for later questions. |
+| `get_index_status` | Returns indexing progress or safe-default server status. | Lets the user know whether the workspace is ready to query. |
+| `search_code` | Searches indexed files, modules, and symbols. | Finds relevant implementation areas quickly. |
+| `find_symbol` | Resolves a symbol and nearby graph context. | Explains where a symbol lives and how it is used. |
+| `find_module` | Resolves a module and returns metadata and symbols. | Helps the AI answer module-specific questions accurately. |
+| `get_module_dependencies` | Returns direct and transitive dependencies. | Shows what a module relies on before editing it. |
+| `get_reverse_dependencies` | Returns modules that depend on an entity. | Shows what may be affected by a change. |
+| `trace_dependency_path` | Finds the shortest dependency path between two modules. | Explains why two areas of the codebase are connected. |
+| `explain_module` | Summarizes a module and its local neighborhood. | Produces fast codebase orientation for users and AI. |
+| `summarize_branch_changes` | Maps current branch changes to indexed modules and packages. | Helps review local changes in project context. |
+| `estimate_blast_radius` | Estimates what else is impacted by a module change. | Supports safer refactors and change planning. |
+| `check_architecture_violations` | Returns persisted architecture-rule violations. | Helps keep dependency boundaries and layering intact. |
+| `analyze_test_failures` | Ranks likely impacted tests from changed modules. | Helps focus testing effort after edits. |
+| `query_logs` | Searches indexed workspace logs. | Lets the AI inspect runtime evidence without rereading raw log files each time. |
+| `build_incident_timeline` | Combines changes, tests, incidents, and logs. | Helps explain local failures and regression timelines. |
+
+## Example Prompts For AI Clients
+
+- `Index D:\\Workspace\\my-repo with Local Engineering Brain and tell me when it is ready.`
+- `Use Local Engineering Brain to find calculateTotal and explain which module owns it.`
+- `Use Local Engineering Brain to summarize branch changes and estimate blast radius for src/api/checkout-service.ts.`
+- `Use Local Engineering Brain to check architecture violations and explain the highest-severity issue.`
+- `Use Local Engineering Brain to rank likely affected tests for the current branch.`
+- `Use Local Engineering Brain to query API error logs and build an incident timeline.`
+
+## npm Package Description
+
+Npm description:
+
+`Local-first MCP server that auto-indexes the active coding workspace when available, with dependency analysis, architecture checks, test impact, and workspace log intelligence.`
+
+## Production Notes
+
+- transport: stdio only
+- recommended Node version: `>=22`
+- publish from the generated release bundle in `.release/local-engineering-brain`
+- the release bundle rewrites internal workspace packages so the published `npx` package is self-contained

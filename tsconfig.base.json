@@ -1,0 +1,80 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "composite": true,
+    "lib": [
+      "ES2023"
+    ],
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@local-engineering-brain/core-types": [
+        "packages/core-types/src/index.ts"
+      ],
+      "@local-engineering-brain/language-core": [
+        "packages/language-core/src/index.ts"
+      ],
+      "@local-engineering-brain/language-csharp": [
+        "packages/language-csharp/src/index.ts"
+      ],
+      "@local-engineering-brain/language-lua": [
+        "packages/language-lua/src/index.ts"
+      ],
+      "@local-engineering-brain/discovery-engine": [
+        "packages/discovery-engine/src/index.ts"
+      ],
+      "@local-engineering-brain/manifest-intel": [
+        "packages/manifest-intel/src/index.ts"
+      ],
+      "@local-engineering-brain/shared-utils": [
+        "packages/shared-utils/src/index.ts"
+      ],
+      "@local-engineering-brain/tool-contracts": [
+        "packages/tool-contracts/src/index.ts"
+      ],
+      "@local-engineering-brain/workspace-manager": [
+        "packages/workspace-manager/src/index.ts"
+      ],
+      "@local-engineering-brain/storage-sqlite": [
+        "packages/storage-sqlite/src/index.ts"
+      ],
+      "@local-engineering-brain/language-ts": [
+        "packages/language-ts/src/index.ts"
+      ],
+      "@local-engineering-brain/indexer": [
+        "packages/indexer/src/index.ts"
+      ],
+      "@local-engineering-brain/git-intel": [
+        "packages/git-intel/src/index.ts"
+      ],
+      "@local-engineering-brain/graph-engine": [
+        "packages/graph-engine/src/index.ts"
+      ],
+      "@local-engineering-brain/architecture-rules": [
+        "packages/architecture-rules/src/index.ts"
+      ],
+      "@local-engineering-brain/test-intel": [
+        "packages/test-intel/src/index.ts"
+      ],
+      "@local-engineering-brain/log-intel": [
+        "packages/log-intel/src/index.ts"
+      ],
+      "@local-engineering-brain/retrieval-engine": [
+        "packages/retrieval-engine/src/index.ts"
+      ]
+    }
+  }
+}
