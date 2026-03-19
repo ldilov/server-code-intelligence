@@ -14,6 +14,7 @@ export const defaultSourceCodeDiscoveryPatterns = [
 
 export const defaultEvidenceDiscoveryPatterns = [
   "**/*.{json,jsonc,yaml,yml,toml,ini,conf,config}",
+  "**/*.{log,jsonl,ndjson,out}",
   "**/*.{md,mdx,rst,adoc,txt}",
   "**/.env.example",
   "**/.env.sample",

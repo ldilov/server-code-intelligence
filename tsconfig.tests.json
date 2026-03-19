@@ -6,7 +6,8 @@
     "noEmit": false
   },
   "include": [
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "apps/mcp-server/src/**/*.ts"
   ],
   "exclude": [
     "tests/fixtures/**"

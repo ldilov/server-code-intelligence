@@ -55,6 +55,8 @@ describe("indexer + retrieval", () => {
 
   it("summarizes branch changes when the workspace is a git repository", async () => {
     const workspaceRoot = await createFixtureWorkspace();
+    const appDataRoot = await mkdtemp(path.join(os.tmpdir(), "leb-appdata-"));
+    createdDirectories.push(appDataRoot);
     try {
       execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
       execFileSync("git", ["config", "user.email", "local@example.com"], { cwd: workspaceRoot, stdio: "ignore" });
@@ -69,7 +71,7 @@ describe("indexer + retrieval", () => {
     const original = await readFile(changedFile, "utf8");
     await writeFile(changedFile, `${original}\nexport const checkoutLabel = "changed";\n`);
 
-    const appPaths = resolveAppPaths(path.join(workspaceRoot, ".leb-data"));
+    const appPaths = resolveAppPaths(path.join(appDataRoot, ".leb-data"));
     const registration = await registerWorkspace(appPaths, workspaceRoot, "fixture");
     const database = new BrainDatabase(appPaths.databasePath);
     database.init();

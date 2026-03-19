@@ -25,7 +25,7 @@ jobs:
           path: ./.release/local-engineering-brain/*.tgz
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
+    environment: deploynpm
     needs: package
     runs-on: ubuntu-latest
     steps:

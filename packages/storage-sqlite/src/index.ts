@@ -878,7 +878,11 @@ export class BrainDatabase {
     }
     const placeholders = moduleIds.map(() => "?").join(", ");
     const rows = this.db.prepare(`SELECT * FROM modules WHERE id IN (${placeholders})`).all(...moduleIds) as RowRecord[];
-    return rows.map((row) => this.mapModule(row));
+    const modulesById = new Map(rows.map((row) => {
+      const module = this.mapModule(row);
+      return [module.id, module] as const;
+    }));
+    return moduleIds.map((moduleId) => modulesById.get(moduleId)).filter((module): module is ModuleRecord => Boolean(module));
   }
 
   public listPackagesByIds(packageIds: string[]): PackageRecord[] {
