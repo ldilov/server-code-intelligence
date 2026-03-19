@@ -8,6 +8,9 @@
   "include": [
     "tests/**/*.ts"
   ],
+  "exclude": [
+    "tests/fixtures/**"
+  ],
   "references": [
     {
       "path": "./packages/core-types"

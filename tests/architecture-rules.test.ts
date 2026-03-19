@@ -4,7 +4,7 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import type { EdgeRecord, ModuleRecord } from "@local-engineering-brain/core-types";
-import { defaultGeneratedPatterns, evaluateArchitectureRules, loadArchitectureRules } from "@local-engineering-brain/architecture-rules";
+import { evaluateArchitectureRules, loadArchitectureRules } from "@local-engineering-brain/architecture-rules";
 
 const createdDirectories: string[] = [];
 
@@ -41,7 +41,7 @@ describe("architecture-rules", () => {
     assert.equal(config.rules.length, 1);
     assert.ok(config.generatedPatterns?.includes("src/generated/**"));
     assert.ok(config.generatedPatterns?.includes("**/__generated__/**"));
-    assert.ok(defaultGeneratedPatterns.includes("**/*.generated.*"));
+    assert.ok(config.generatedPatterns?.includes("**/*.generated.*"));
 
     const modules: ModuleRecord[] = [
       {
