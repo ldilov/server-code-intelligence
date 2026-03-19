@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import fg from "fast-glob";
 import ignore from "ignore";
@@ -579,11 +579,22 @@ export class WorkspaceIndexer {
         continue;
       }
       const relPath = normalizePath(path.relative(workspace.rootPath, absPath));
+      let sizeBytes = 0;
+      let mtimeMs = Date.now();
+      try {
+        const fileStat = await stat(absPath);
+        sizeBytes = fileStat.size;
+        mtimeMs = fileStat.mtimeMs;
+      } catch {
+        // File may have been deleted between git status and stat
+      }
       const candidate: CandidateFile = {
         absPath,
         relPath,
+        basename: path.basename(absPath),
         extension: path.extname(absPath).slice(1),
-        mtimeMs: Date.now()
+        sizeBytes,
+        mtimeMs
       };
 
       const sourceText = await readCandidateText(candidate, runtimeConventions);
