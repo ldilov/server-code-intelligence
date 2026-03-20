@@ -24,7 +24,9 @@ const internalPackages = [
   "architecture-rules",
   "indexer",
   "graph-engine",
-  "retrieval-engine"
+  "retrieval-engine",
+  "retrospect-log",
+  "context-bundler"
 ];
 
 const externalDependencies = {
