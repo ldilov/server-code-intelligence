@@ -64,6 +64,9 @@ export class BrainDatabase {
   public constructor(databasePath: string) {
     fs.mkdirSync(path.dirname(databasePath), { recursive: true });
     this.db = new DatabaseSync(databasePath);
+    // Set busy_timeout immediately at connection level — before any schema ops.
+    // This ensures concurrent openers wait up to 5s instead of failing instantly.
+    this.db.exec("PRAGMA busy_timeout = 5000;");
   }
 
   public init(): void {
@@ -170,7 +173,7 @@ export class BrainDatabase {
       this.deleteFileOwnedFacts(fact.file.workspaceId, fact.file.path);
 
       this.db.prepare(
-        `INSERT INTO files (id, workspace_id, repo_id, package_id, path, language, summary, authored, hash, updated_at)
+        `INSERT OR REPLACE INTO files (id, workspace_id, repo_id, package_id, path, language, summary, authored, hash, updated_at)
          VALUES (@id, @workspaceId, @repoId, @packageId, @path, @language, @summary, @authored, @hash, @updatedAt)`
       ).run({
         id: fact.file.id,
@@ -186,7 +189,7 @@ export class BrainDatabase {
       } as any);
 
       this.db.prepare(
-        `INSERT INTO modules (id, workspace_id, file_id, package_id, canonical_path, language, summary, public_exports_json, inbound_dependency_count, outbound_dependency_count, updated_at)
+        `INSERT OR REPLACE INTO modules (id, workspace_id, file_id, package_id, canonical_path, language, summary, public_exports_json, inbound_dependency_count, outbound_dependency_count, updated_at)
          VALUES (@id, @workspaceId, @fileId, @packageId, @canonicalPath, @language, @summary, @publicExportsJson, 0, @outboundDependencyCount, @updatedAt)`
       ).run({
         id: fact.module.id,
@@ -202,7 +205,7 @@ export class BrainDatabase {
       } as any);
 
       const symbolStatement = this.db.prepare(
-        `INSERT INTO symbols (
+        `INSERT OR REPLACE INTO symbols (
            id, workspace_id, module_id, file_id, qualified_name, local_name, kind, signature, exported,
            range_start_line, range_start_column, range_end_line, range_end_column, summary, updated_at
          ) VALUES (
@@ -243,7 +246,7 @@ export class BrainDatabase {
       this.deleteTestFactsByPathInternal(workspaceId, filePath);
 
       this.db.prepare(
-        `INSERT INTO test_suites (id, workspace_id, file_path, framework, name, updated_at)
+        `INSERT OR REPLACE INTO test_suites (id, workspace_id, file_path, framework, name, updated_at)
          VALUES (@id, @workspaceId, @filePath, @framework, @name, @updatedAt)`
       ).run({
         id: fact.suite.id,
@@ -255,7 +258,7 @@ export class BrainDatabase {
       } as any);
 
       const caseStatement = this.db.prepare(
-        `INSERT INTO test_cases (
+        `INSERT OR REPLACE INTO test_cases (
            id, workspace_id, suite_id, file_path, name,
            range_start_line, range_start_column, range_end_line, range_end_column, updated_at
          ) VALUES (
@@ -609,21 +612,21 @@ export class BrainDatabase {
       const uniqueIncidents = [...new Map(incidents.map((incident) => [incident.id, incident])).values()];
 
       const eventStatement = this.db.prepare(
-        `INSERT INTO log_events (
+        `INSERT OR REPLACE INTO log_events (
            id, workspace_id, source_name, file_path, service, level, timestamp, message, raw_line, updated_at
          ) VALUES (
            @id, @workspaceId, @sourceName, @filePath, @service, @level, @timestamp, @message, @rawLine, @updatedAt
          )`
       );
       const incidentStatement = this.db.prepare(
-        `INSERT INTO incidents (
+        `INSERT OR REPLACE INTO incidents (
            id, workspace_id, service, title, level, first_seen_at, last_seen_at, event_count, latest_log_event_id, updated_at
          ) VALUES (
            @id, @workspaceId, @service, @title, @level, @firstSeenAt, @lastSeenAt, @eventCount, @latestLogEventId, @updatedAt
          )`
       );
       const ftsStatement = this.db.prepare(
-        `INSERT INTO fts_logs (entity_id, service, level, message, raw_line) VALUES (?, ?, ?, ?, ?)`
+        `INSERT OR REPLACE INTO fts_logs (entity_id, service, level, message, raw_line) VALUES (?, ?, ?, ?, ?)`
       );
 
       for (const event of uniqueEvents) {
@@ -745,7 +748,7 @@ export class BrainDatabase {
     const now = nowIso();
     const jobId = stableId("job", workspaceId, now, phase);
     this.db.prepare(
-      `INSERT INTO index_jobs (id, workspace_id, status, phase, message, files_total, files_processed, started_at, finished_at, updated_at)
+      `INSERT OR REPLACE INTO index_jobs (id, workspace_id, status, phase, message, files_total, files_processed, started_at, finished_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)`
     ).run(jobId, workspaceId, "running", phase, message, filesTotal, now, now);
     return jobId;
@@ -976,7 +979,7 @@ export class BrainDatabase {
 
   private insertEdges(edges: EdgeRecord[]): void {
     const statement = this.db.prepare(
-      `INSERT INTO edges (
+      `INSERT OR REPLACE INTO edges (
          id, workspace_id, source_id, source_type, target_id, target_type, type, owner_file_path,
          confidence, metadata_json, created_at, updated_at
        ) VALUES (
@@ -1029,7 +1032,12 @@ export class BrainDatabase {
       this.db.exec("COMMIT");
       return result;
     } catch (error) {
-      this.db.exec("ROLLBACK");
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+        // ROLLBACK can fail if the transaction was already aborted (e.g. "database is locked"
+        // auto-rolls back in some SQLite error paths). Suppress to preserve original error.
+      }
       throw error;
     }
   }

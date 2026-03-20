@@ -1,5 +1,6 @@
 export const schemaStatements = [
   `PRAGMA journal_mode = WAL;`,
+  `PRAGMA busy_timeout = 5000;`,
   `CREATE TABLE IF NOT EXISTS workspaces (
       id TEXT PRIMARY KEY,
       root_path TEXT NOT NULL UNIQUE,
